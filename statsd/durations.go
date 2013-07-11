@@ -15,7 +15,7 @@ import (
 )
 
 // MaxPacketLen is the number of bytes filled before a packet is flushed before the reporting interval.
-const maxPacketLen = 2^15
+const maxPacketLen = 2 ^ 15
 
 func flush(w io.Writer, buf *bytes.Buffer) {
 	if _, err := w.Write(buf.Bytes()); err != nil {
