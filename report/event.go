@@ -3,6 +3,9 @@
 // license that can be found in the README file.
 // Source code and contact info at http://github.com/streadway/handy
 
+/*
+Package report organizes textual reporting from the HTTP context.
+*/
 package report
 
 import (
