@@ -37,11 +37,11 @@ func TestInstrumentCodes(t *testing.T) {
 	got := string(out.Bytes())
 
 	if !strings.Contains(got, "test.200:1|c") {
-		t.Fatal("expected statsd formatted count for 200, got: %q", got)
+		t.Fatalf("expected statsd formatted count for 200, got: %q", got)
 	}
 
 	if !strings.Contains(got, "test.404:1|c") {
-		t.Fatal("expected statsd formatted count for 404, got: %q", got)
+		t.Fatalf("expected statsd formatted count for 404, got: %q", got)
 	}
 }
 
