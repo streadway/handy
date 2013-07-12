@@ -56,7 +56,7 @@ func TestGet(t *testing.T) {
 
 	req.Method = "GET"
 	req.Header = map[string][]string{
-		"Origin":                        {"localhost"},
+		"Origin": {"localhost"},
 	}
 
 	h.ServeHTTP(resp, req)
@@ -84,7 +84,7 @@ func TestGetWithPOST(t *testing.T) {
 
 	req.Method = "POST"
 	req.Header = map[string][]string{
-		"Origin":                        {"localhost"},
+		"Origin": {"localhost"},
 	}
 
 	h.ServeHTTP(resp, req)
