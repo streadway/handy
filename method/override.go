@@ -10,7 +10,7 @@ import (
 func Override(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
-			override := r.Header.Get("_method")
+			override := r.FormValue("_method")
 			switch override {
 			case "PUT", "PATCH", "DELETE":
 				r.Method = override

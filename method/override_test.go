@@ -3,6 +3,7 @@ package method
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -24,7 +25,7 @@ func TestDoesntOverrideGET(t *testing.T) {
 
 	req := &http.Request{
 		Method: "GET",
-		Header: map[string][]string{
+		Form: url.Values{
 			"_method": {"DELETE"}},
 	}
 
@@ -37,7 +38,7 @@ func TestOverridesPOSTWithDELETE(t *testing.T) {
 
 	req := &http.Request{
 		Method: "POST",
-		Header: map[string][]string{
+		Form: url.Values{
 			"_method": {"DELETE"}},
 	}
 
@@ -50,7 +51,7 @@ func TestOverridesPOSTWithPUT(t *testing.T) {
 
 	req := &http.Request{
 		Method: "POST",
-		Header: map[string][]string{
+		Form: url.Values{
 			"_method": {"PUT"}},
 	}
 
