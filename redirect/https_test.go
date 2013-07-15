@@ -14,12 +14,13 @@ func (h code) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestHTTPSServesUsingXForwardedProtoHttps(t *testing.T) {
-	h := HTTPS("localhost", code(204))
+	h := HTTPS(code(204))
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
 		Method: "GET",
 		URL:    &url.URL{Scheme: "http", Path: "/"},
+		Host:   "localhost",
 		Header: map[string][]string{"X-Forwarded-Proto": {"https"}},
 	}
 
@@ -31,12 +32,13 @@ func TestHTTPSServesUsingXForwardedProtoHttps(t *testing.T) {
 }
 
 func TestHTTPSServesUsingHttps(t *testing.T) {
-	h := HTTPS("localhost", code(204))
+	h := HTTPS(code(204))
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
 		Method: "GET",
 		URL:    &url.URL{Scheme: "https", Path: "/index.html"},
+		Host:   "localhost",
 		Header: map[string][]string{},
 	}
 
@@ -48,12 +50,13 @@ func TestHTTPSServesUsingHttps(t *testing.T) {
 }
 
 func TestHTTPSRedirectsUsingHttp(t *testing.T) {
-	h := HTTPS("localhost", code(204))
+	h := HTTPS(code(204))
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
 		Method: "GET",
 		URL:    &url.URL{Scheme: "http", Path: "/index.html"},
+		Host:   "localhost",
 		Header: map[string][]string{},
 	}
 
@@ -68,12 +71,13 @@ func TestHTTPSRedirectsUsingHttp(t *testing.T) {
 }
 
 func TestHTTPSRedirectsUsingXForwardedProtoHttp(t *testing.T) {
-	h := HTTPS("localhost", code(204))
+	h := HTTPS(code(204))
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
 		Method: "GET",
 		URL:    &url.URL{Scheme: "http", Path: "/index.html"},
+		Host:   "localhost",
 		Header: map[string][]string{"X-Forwarded-Proto": {"http"}},
 	}
 
@@ -88,12 +92,13 @@ func TestHTTPSRedirectsUsingXForwardedProtoHttp(t *testing.T) {
 }
 
 func TestHTTPSRedirectsToSameHostWithEmptyParameter(t *testing.T) {
-	h := HTTPS("", code(204))
+	h := HTTPS(code(204))
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
 		Method: "GET",
-		URL:    &url.URL{Scheme: "http", Path: "/index.html", Host: "example.com"},
+		URL:    &url.URL{Scheme: "http", Path: "/index.html"},
+		Host:   "example.com",
 		Header: map[string][]string{},
 	}
 
