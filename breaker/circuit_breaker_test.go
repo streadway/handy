@@ -10,10 +10,10 @@ func afterTest() {
 	now = time.Now
 }
 
-func TestnewBreakerAllows(t *testing.T) {
+func TestNewCircuitBreakerAllows(t *testing.T) {
 	defer afterTest()
 
-	b := newBreaker(0)
+	b := NewCircuitBreaker(0)
 
 	if !b.Allow() {
 		t.Fatal("expected new breaker to be closed")
@@ -23,7 +23,7 @@ func TestnewBreakerAllows(t *testing.T) {
 func TestBreakerSuccessClosesOpenCircuit(t *testing.T) {
 	defer afterTest()
 
-	b := newBreaker(0)
+	b := NewCircuitBreaker(0)
 	b.Trip()
 	if b.Allow() {
 		t.Fatal("expected new breaker to be open in test")
@@ -39,7 +39,7 @@ func TestBreakerSuccessClosesOpenCircuit(t *testing.T) {
 func TestBreakerFailTripsCircuitWithASingleFailureAt0PrecentThreshold(t *testing.T) {
 	defer afterTest()
 
-	b := newBreaker(0)
+	b := NewCircuitBreaker(0)
 
 	for i := 0; i < 100; i++ {
 		b.Success(0)
@@ -56,7 +56,7 @@ func TestBreakerFailDoesNotTripCircuitAt1PrecentThreshold(t *testing.T) {
 
 	const threshold = 0.01
 
-	b := newBreaker(threshold)
+	b := NewCircuitBreaker(threshold)
 
 	for i := 0; i < 100-100*threshold; i++ {
 		b.Success(0)
@@ -83,7 +83,7 @@ func TestBreakerAllowsASingleRequestAfterNapTime(t *testing.T) {
 	timer := make(chan time.Time, 1)
 	after = func(time.Duration) <-chan time.Time { return timer }
 
-	b := newBreaker(0)
+	b := NewCircuitBreaker(0)
 	b.Trip()
 
 	timer <- now()

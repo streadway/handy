@@ -4,8 +4,10 @@ import (
 	"time"
 )
 
-var after = time.After
-var now = time.Now
+var (
+	after = time.After
+	now   = time.Now
+)
 
 type states int
 
@@ -18,7 +20,8 @@ const (
 	halfopen
 )
 
-type circuitBreaker struct {
+// CircuitBreaker implements a circuit breaker state machine.
+type CircuitBreaker struct {
 	force     chan states
 	allow     chan bool
 	success   chan time.Duration
@@ -26,12 +29,13 @@ type circuitBreaker struct {
 	threshold float64
 }
 
-func newBreaker(failureThreshold float64) circuitBreaker {
+// NewCircuitBreaker constructs a new circuit breaker, initially closed.
+func NewCircuitBreaker(failureThreshold float64) CircuitBreaker {
 	if failureThreshold < 0.0 || failureThreshold > 1.0 {
 		panic("failureThreshold must be between 0.0 and 1.0")
 	}
 
-	b := circuitBreaker{
+	b := CircuitBreaker{
 		force:     make(chan states),
 		allow:     make(chan bool),
 		success:   make(chan time.Duration),
@@ -62,7 +66,7 @@ dot  halfopen -> open   [label="failed"]
 dot  halfopen -> open   [label="allowed one"]
 dot }
 */
-func (b circuitBreaker) run() {
+func (b CircuitBreaker) run() {
 	var (
 		state   states
 		timeout <-chan time.Time
@@ -120,22 +124,31 @@ func (b circuitBreaker) run() {
 	}
 }
 
-func (b circuitBreaker) Allow() bool {
+// Allow returns true if a new request should be allowed to proceed to the
+// underlying resource.
+func (b CircuitBreaker) Allow() bool {
 	return <-b.allow
 }
 
-func (b circuitBreaker) Trip() {
+// Trip manually opens the circuit.
+func (b CircuitBreaker) Trip() {
 	b.force <- tripped
 }
 
-func (b circuitBreaker) Reset() {
+// Reset manually closes the circuit.
+func (b CircuitBreaker) Reset() {
 	b.force <- reset
 }
 
-func (b circuitBreaker) Success(d time.Duration) {
+// Success informs the circuit that a request to the underlying resource has
+// completed successfully. Every Allowed request should signal either Success
+// or Failure.
+func (b CircuitBreaker) Success(d time.Duration) {
 	b.success <- d
 }
 
-func (b circuitBreaker) Failure(d time.Duration) {
+// Failure informs the circuit that a request to the underlying resource has
+// failed. Every Allowed request should signal either Success or Failure.
+func (b CircuitBreaker) Failure(d time.Duration) {
 	b.failure <- d
 }

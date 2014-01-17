@@ -17,12 +17,12 @@ func (w *codeWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-type BreakerHandler struct {
-	breaker circuitBreaker
+type breakerHandler struct {
+	breaker CircuitBreaker
 	next    http.Handler
 }
 
-func (h *BreakerHandler) serveClosed(w http.ResponseWriter, r *http.Request) {
+func (h *breakerHandler) serveClosed(w http.ResponseWriter, r *http.Request) {
 	cw := &codeWriter{w, 200}
 	begin := now()
 
@@ -36,11 +36,11 @@ func (h *BreakerHandler) serveClosed(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *BreakerHandler) serveOpened(w http.ResponseWriter, r *http.Request) {
+func (h *breakerHandler) serveOpened(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusServiceUnavailable)
 }
 
-func (h *BreakerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *breakerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.breaker.Allow() {
 		h.serveClosed(w, r)
 	} else {
@@ -52,10 +52,9 @@ func (h *BreakerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // returns 503 with an empty body after 5% failure rate over a sliding window
 // of 5 seconds with a 1 second cooldown period before retrying with a single
 // request.
-func DefaultBreaker(next http.Handler) *BreakerHandler {
-	return &BreakerHandler{
-		breaker: newBreaker(0.05),
+func DefaultBreaker(next http.Handler) *breakerHandler {
+	return &breakerHandler{
+		breaker: NewCircuitBreaker(0.05),
 		next:    next,
 	}
 }
-
