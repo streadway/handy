@@ -36,7 +36,7 @@ func TestErrorRateOverThreshold(t *testing.T) {
 	c.Success(0)
 
 	if ex, s := 0.70, c.Summary(); s.rate < ex {
-		t.Errorf("expected error rate to be over %d%%, got: %f in %+v", ex*100, s, s.rate)
+		t.Errorf("expected error rate to be over %d%%, got: %f in %+v", int(ex*100), s.rate, s)
 	}
 }
 
