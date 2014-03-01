@@ -5,6 +5,7 @@ package breaker
 
 import (
 	"net/http"
+	"time"
 )
 
 type codeWriter struct {
@@ -24,11 +25,11 @@ type breakerHandler struct {
 
 func (h *breakerHandler) serveClosed(w http.ResponseWriter, r *http.Request) {
 	cw := &codeWriter{w, 200}
-	begin := now()
+	begin := time.Now()
 
 	h.next.ServeHTTP(cw, r)
 
-	duration := now().Sub(begin)
+	duration := time.Now().Sub(begin)
 	if cw.code < 500 {
 		h.breaker.Success(duration)
 	} else {

@@ -4,9 +4,10 @@ import (
 	"time"
 )
 
-var (
-	after = time.After
-	now   = time.Now
+const (
+	DefaultWindow          = 5 * time.Second
+	DefaultCooldown        = 1 * time.Second
+	DefaultMinObservations = 10
 )
 
 type states int
@@ -22,33 +23,75 @@ const (
 
 // CircuitBreaker implements a circuit breaker state machine.
 type CircuitBreaker struct {
-	force     chan states
-	allow     chan bool
-	success   chan time.Duration
-	failure   chan time.Duration
-	threshold float64
+	force   chan states
+	allow   chan bool
+	success chan time.Duration
+	failure chan time.Duration
+
+	config circuitBreakerConfig
 }
 
-// NewCircuitBreaker constructs a new circuit breaker, initially closed.
-func NewCircuitBreaker(failureThreshold float64) CircuitBreaker {
-	if failureThreshold < 0.0 || failureThreshold > 1.0 {
-		panic("failureThreshold must be between 0.0 and 1.0")
+type circuitBreakerConfig struct {
+	FailureRatio float64 // normalized between 0.0 and 1.0
+
+	Window          time.Duration // number of second buckets to observe
+	Cooldown        time.Duration // time to wait before trying once when open
+	MinObservations uint          // observations required to open when failing
+
+	Now   func() time.Time                     // default time.Now
+	After func(time.Duration) <-chan time.Time // default time.After
+}
+
+func newCircuitBreaker(c circuitBreakerConfig) CircuitBreaker {
+	if c.FailureRatio < 0.0 {
+		c.FailureRatio = 0.0
+	}
+
+	if c.FailureRatio > 1.0 {
+		c.FailureRatio = 1.0
+	}
+
+	if c.Window == 0 {
+		c.Window = DefaultWindow
+	}
+
+	if c.Cooldown == 0 {
+		c.Cooldown = DefaultCooldown
+	}
+
+	if c.Now == nil {
+		c.Now = time.Now
+	}
+
+	if c.After == nil {
+		c.After = time.After
 	}
 
 	b := CircuitBreaker{
-		force:     make(chan states),
-		allow:     make(chan bool),
-		success:   make(chan time.Duration),
-		failure:   make(chan time.Duration),
-		threshold: failureThreshold,
+		force:   make(chan states),
+		allow:   make(chan bool),
+		success: make(chan time.Duration),
+		failure: make(chan time.Duration),
+		config:  c,
 	}
+
 	go b.run()
+
 	return b
 }
 
-func shouldOpen(m *metric, threshold float64) bool {
+// NewCircuitBreaker constructs a new circuit breaker, initially closed.
+// CircuitBreaker opens after failureRatio failures per success.
+func NewCircuitBreaker(failureRatio float64) CircuitBreaker {
+	return newCircuitBreaker(circuitBreakerConfig{
+		MinObservations: DefaultMinObservations,
+		FailureRatio:    failureRatio,
+	})
+}
+
+func (b CircuitBreaker) shouldOpen(m *metric) bool {
 	s := m.Summary()
-	return s.total > 5 && s.rate > threshold
+	return s.total > b.config.MinObservations && s.rate > b.config.FailureRatio
 }
 
 /*
@@ -70,14 +113,14 @@ func (b CircuitBreaker) run() {
 	var (
 		state   states
 		timeout <-chan time.Time
-		metrics metric
+		metrics *metric
 	)
 
 	for {
-		//println(state, len(timeout))
+		//println(state, len(timeout), metrics)
 		switch state {
 		case reset:
-			metrics = metric{}
+			metrics = newMetric(b.config.Window, b.config.Now)
 			timeout = nil
 			state = closed
 
@@ -88,14 +131,14 @@ func (b CircuitBreaker) run() {
 				metrics.Success(d)
 			case d := <-b.failure:
 				metrics.Failure(d)
-				if shouldOpen(&metrics, b.threshold) {
+				if b.shouldOpen(metrics) {
 					state = tripped
 				}
 			case state = <-b.force:
 			}
 
 		case tripped:
-			timeout = after(time.Second)
+			timeout = b.config.After(b.config.Cooldown)
 			state = open
 
 		case open:

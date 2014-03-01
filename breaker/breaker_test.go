@@ -11,6 +11,7 @@ type code int
 func (h code) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(int(h))
 }
+
 func TestCircuitStaysClosedWithSingleError(t *testing.T) {
 	h := DefaultBreaker(code(500))
 
@@ -37,9 +38,7 @@ func TestCircuitOpenWith5PercentError(t *testing.T) {
 
 	for i := 1; i <= 100; i++ {
 		resp := httptest.NewRecorder()
-		req := &http.Request{
-			Method: "GET",
-		}
+		req := &http.Request{Method: "GET"}
 
 		if i >= 95 {
 			code = 500

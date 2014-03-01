@@ -6,7 +6,7 @@ import (
 )
 
 func TestErrorRateUnderThreshold(t *testing.T) {
-	c := metric{}
+	c := newMetric(5*time.Second, time.Now)
 
 	c.Success(0)
 	c.Success(0)
@@ -23,7 +23,7 @@ func TestErrorRateUnderThreshold(t *testing.T) {
 }
 
 func TestErrorRateOverThreshold(t *testing.T) {
-	c := metric{}
+	c := newMetric(5*time.Second, time.Now)
 
 	c.Failure(0)
 	c.Failure(0)
@@ -41,12 +41,8 @@ func TestErrorRateOverThreshold(t *testing.T) {
 }
 
 func TestErrorRateCalculatedFromLast5Seconds(t *testing.T) {
-	defer afterTest()
-
-	c := metric{}
-
 	fakenow := time.Now()
-	now = func() time.Time { return fakenow }
+	c := newMetric(5*time.Second, func() time.Time { return fakenow })
 
 	// 77% error for 5 seconds
 	for i := 0; i < 5; i++ {
