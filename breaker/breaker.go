@@ -29,7 +29,7 @@ func (h *breakerHandler) serveClosed(w http.ResponseWriter, r *http.Request) {
 
 	h.next.ServeHTTP(cw, r)
 
-	duration := time.Now().Sub(begin)
+	duration := time.Since(begin)
 	if cw.code < 500 {
 		h.breaker.Success(duration)
 	} else {
