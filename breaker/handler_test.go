@@ -22,7 +22,7 @@ func TestCircuitStaysClosedWithSingleError(t *testing.T) {
 
 	h.ServeHTTP(resp, req)
 
-	if !h.(*breakerHandler).circuit.Allow() {
+	if !h.(*handler).circuit.Allow() {
 		t.Fatal("expected breaker to be closed after one requests")
 	}
 }
