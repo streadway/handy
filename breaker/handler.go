@@ -11,18 +11,18 @@ import (
 // request.
 func Handler(next http.Handler) http.Handler {
 	return &breakerHandler{
-		breaker: NewCircuitBreaker(0.05),
+		circuit: NewCircuit(0.05),
 		next:    next,
 	}
 }
 
 type breakerHandler struct {
-	breaker CircuitBreaker
+	circuit Circuit
 	next    http.Handler
 }
 
 func (h *breakerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if h.breaker.Allow() {
+	if h.circuit.Allow() {
 		h.serveClosed(w, r)
 	} else {
 		h.serveOpened(w, r)
@@ -37,9 +37,9 @@ func (h *breakerHandler) serveClosed(w http.ResponseWriter, r *http.Request) {
 
 	duration := time.Since(begin)
 	if cw.code < 500 {
-		h.breaker.Success(duration)
+		h.circuit.Success(duration)
 	} else {
-		h.breaker.Failure(duration)
+		h.circuit.Failure(duration)
 	}
 }
 

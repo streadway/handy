@@ -29,17 +29,17 @@ const (
 	halfopen
 )
 
-// CircuitBreaker implements a circuit breaker state machine.
-type CircuitBreaker struct {
+// Circuit implements a circuit breaker state machine.
+type Circuit struct {
 	force   chan states
 	allow   chan bool
 	success chan time.Duration
 	failure chan time.Duration
 
-	config circuitBreakerConfig
+	config circuitConfig
 }
 
-type circuitBreakerConfig struct {
+type circuitConfig struct {
 	FailureRatio float64 // normalized between 0.0 and 1.0
 
 	Window          time.Duration // number of second buckets to observe
@@ -50,56 +50,56 @@ type circuitBreakerConfig struct {
 	After func(time.Duration) <-chan time.Time // default time.After
 }
 
-func newCircuitBreaker(c circuitBreakerConfig) CircuitBreaker {
-	if c.FailureRatio < 0.0 {
-		c.FailureRatio = 0.0
+func newCircuit(config circuitConfig) Circuit {
+	if config.FailureRatio < 0.0 {
+		config.FailureRatio = 0.0
 	}
 
-	if c.FailureRatio > 1.0 {
-		c.FailureRatio = 1.0
+	if config.FailureRatio > 1.0 {
+		config.FailureRatio = 1.0
 	}
 
-	if c.Window == 0 {
-		c.Window = DefaultWindow
+	if config.Window == 0 {
+		config.Window = DefaultWindow
 	}
 
-	if c.Cooldown == 0 {
-		c.Cooldown = DefaultCooldown
+	if config.Cooldown == 0 {
+		config.Cooldown = DefaultCooldown
 	}
 
-	if c.Now == nil {
-		c.Now = time.Now
+	if config.Now == nil {
+		config.Now = time.Now
 	}
 
-	if c.After == nil {
-		c.After = time.After
+	if config.After == nil {
+		config.After = time.After
 	}
 
-	b := CircuitBreaker{
+	circuit := Circuit{
 		force:   make(chan states),
 		allow:   make(chan bool),
 		success: make(chan time.Duration),
 		failure: make(chan time.Duration),
-		config:  c,
+		config:  config,
 	}
 
-	go b.run()
+	go circuit.run()
 
-	return b
+	return circuit
 }
 
-// NewCircuitBreaker constructs a new circuit breaker, initially closed.
-// CircuitBreaker opens after failureRatio failures per success.
-func NewCircuitBreaker(failureRatio float64) CircuitBreaker {
-	return newCircuitBreaker(circuitBreakerConfig{
+// NewCircuit constructs a new circuit breaker, initially closed.
+// Circuit opens after failureRatio failures per success.
+func NewCircuit(failureRatio float64) Circuit {
+	return newCircuit(circuitConfig{
 		MinObservations: DefaultMinObservations,
 		FailureRatio:    failureRatio,
 	})
 }
 
-func (b CircuitBreaker) shouldOpen(m *metric) bool {
+func (c Circuit) shouldOpen(m *metric) bool {
 	s := m.Summary()
-	return s.total > b.config.MinObservations && s.rate > b.config.FailureRatio
+	return s.total > c.config.MinObservations && s.rate > c.config.FailureRatio
 }
 
 /*
@@ -117,7 +117,7 @@ dot  halfopen -> open   [label="failed"]
 dot  halfopen -> open   [label="allowed one"]
 dot }
 */
-func (b CircuitBreaker) run() {
+func (c Circuit) run() {
 	var (
 		state   states
 		timeout <-chan time.Time
@@ -128,47 +128,47 @@ func (b CircuitBreaker) run() {
 		//println(state, len(timeout), metrics)
 		switch state {
 		case reset:
-			metrics = newMetric(b.config.Window, b.config.Now)
+			metrics = newMetric(c.config.Window, c.config.Now)
 			timeout = nil
 			state = closed
 
 		case closed:
 			select {
-			case b.allow <- true:
-			case d := <-b.success:
+			case c.allow <- true:
+			case d := <-c.success:
 				metrics.Success(d)
-			case d := <-b.failure:
+			case d := <-c.failure:
 				metrics.Failure(d)
-				if b.shouldOpen(metrics) {
+				if c.shouldOpen(metrics) {
 					state = tripped
 				}
-			case state = <-b.force:
+			case state = <-c.force:
 			}
 
 		case tripped:
-			timeout = b.config.After(b.config.Cooldown)
+			timeout = c.config.After(c.config.Cooldown)
 			state = open
 
 		case open:
 			select {
-			case b.allow <- false:
-			case <-b.success:
+			case c.allow <- false:
+			case <-c.success:
 				state = reset
-			case <-b.failure:
+			case <-c.failure:
 			case <-timeout:
 				state = halfopen
-			case state = <-b.force:
+			case state = <-c.force:
 			}
 
 		case halfopen:
 			select {
-			case b.allow <- true:
+			case c.allow <- true:
 				state = tripped
-			case <-b.success:
+			case <-c.success:
 				state = reset
-			case <-b.failure:
+			case <-c.failure:
 				state = open
-			case state = <-b.force:
+			case state = <-c.force:
 			}
 
 		}
@@ -177,29 +177,29 @@ func (b CircuitBreaker) run() {
 
 // Allow returns true if a new request should be allowed to proceed to the
 // underlying resource.
-func (b CircuitBreaker) Allow() bool {
-	return <-b.allow
+func (c Circuit) Allow() bool {
+	return <-c.allow
 }
 
 // Trip manually opens the circuit.
-func (b CircuitBreaker) Trip() {
-	b.force <- tripped
+func (c Circuit) Trip() {
+	c.force <- tripped
 }
 
 // Reset manually closes the circuit.
-func (b CircuitBreaker) Reset() {
-	b.force <- reset
+func (c Circuit) Reset() {
+	c.force <- reset
 }
 
 // Success informs the circuit that a request to the underlying resource has
 // completed successfully. Every Allowed request should signal either Success
 // or Failure.
-func (b CircuitBreaker) Success(d time.Duration) {
-	b.success <- d
+func (c Circuit) Success(d time.Duration) {
+	c.success <- d
 }
 
 // Failure informs the circuit that a request to the underlying resource has
 // failed. Every Allowed request should signal either Success or Failure.
-func (b CircuitBreaker) Failure(d time.Duration) {
-	b.failure <- d
+func (c Circuit) Failure(d time.Duration) {
+	c.failure <- d
 }

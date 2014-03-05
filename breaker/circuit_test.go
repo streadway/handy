@@ -5,40 +5,40 @@ import (
 	"time"
 )
 
-func TestNewCircuitBreakerAllows(t *testing.T) {
-	b := NewCircuitBreaker(0)
+func TestNewCircuitAllows(t *testing.T) {
+	c := NewCircuit(0)
 
-	if !b.Allow() {
+	if !c.Allow() {
 		t.Fatal("expected new breaker to be closed")
 	}
 }
 
 func TestBreakerSuccessClosesOpenCircuit(t *testing.T) {
-	b := NewCircuitBreaker(0)
+	c := NewCircuit(0)
 
-	b.Trip()
+	c.Trip()
 
-	if b.Allow() {
+	if c.Allow() {
 		t.Fatal("expected new breaker to be open after being tripped")
 	}
 
-	b.Success(time.Duration(0))
+	c.Success(time.Duration(0))
 
-	if !b.Allow() {
+	if !c.Allow() {
 		t.Fatal("expected new breaker to be closed after a success")
 	}
 }
 
 func TestBreakerFailTripsCircuitWithASingleFailureAt0PrecentThreshold(t *testing.T) {
-	b := NewCircuitBreaker(0)
+	c := NewCircuit(0)
 
 	for i := 0; i < 100; i++ {
-		b.Success(0)
+		c.Success(0)
 	}
 
-	b.Failure(0)
+	c.Failure(0)
 
-	if b.Allow() {
+	if c.Allow() {
 		t.Fatalf("expected failure to not trip circuit at 0%% threshold")
 	}
 }
@@ -46,23 +46,23 @@ func TestBreakerFailTripsCircuitWithASingleFailureAt0PrecentThreshold(t *testing
 func TestBreakerFailDoesNotTripCircuitAt1PrecentThreshold(t *testing.T) {
 	const threshold = 0.01
 
-	b := NewCircuitBreaker(threshold)
+	c := NewCircuit(threshold)
 
 	for i := 0; i < 100-100*threshold; i++ {
-		b.Success(0)
+		c.Success(0)
 	}
 
 	for i := 0; i < 100*threshold; i++ {
-		b.Failure(0)
+		c.Failure(0)
 	}
 
-	if !b.Allow() {
+	if !c.Allow() {
 		t.Fatalf("expected failure to not trip circuit at 1%% threshold")
 	}
 
-	b.Failure(0)
+	c.Failure(0)
 
-	if b.Allow() {
+	if c.Allow() {
 		t.Fatal("expected failure to trip over the threshold")
 	}
 }
@@ -70,20 +70,20 @@ func TestBreakerFailDoesNotTripCircuitAt1PrecentThreshold(t *testing.T) {
 func TestBreakerAllowsASingleRequestAfterNapTime(t *testing.T) {
 	after := make(chan time.Time)
 
-	b := newCircuitBreaker(circuitBreakerConfig{
+	c := newCircuit(circuitConfig{
 		Window: 5 * time.Second,
 		After:  func(time.Duration) <-chan time.Time { return after },
 	})
 
-	b.Trip()
+	c.Trip()
 
 	after <- time.Now()
 
-	if !b.Allow() {
+	if !c.Allow() {
 		t.Fatal("expected to allow once after nap time")
 	}
 
-	if b.Allow() {
+	if c.Allow() {
 		t.Fatal("expected to only allow once after nap time")
 	}
 }
@@ -91,26 +91,26 @@ func TestBreakerAllowsASingleRequestAfterNapTime(t *testing.T) {
 func TestBreakerClosesAfterSuccessAfterNapTime(t *testing.T) {
 	after := make(chan time.Time)
 
-	b := newCircuitBreaker(circuitBreakerConfig{
+	c := newCircuit(circuitConfig{
 		Window: 5 * time.Second,
 		After:  func(time.Duration) <-chan time.Time { return after },
 	})
 
-	b.Trip()
+	c.Trip()
 
 	after <- time.Now()
 
-	if !b.Allow() {
+	if !c.Allow() {
 		t.Fatal("expected to allow once after nap time")
 	}
 
-	b.Success(time.Duration(0))
+	c.Success(time.Duration(0))
 
-	if !b.Allow() {
+	if !c.Allow() {
 		t.Fatal("expected to close after first success")
 	}
 
-	if !b.Allow() {
+	if !c.Allow() {
 		t.Fatal("expected to stay closed after first success")
 	}
 }

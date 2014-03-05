@@ -5,18 +5,18 @@ import (
 	"time"
 )
 
-func failrate(b CircuitBreaker, count int, pct float64) {
+func failrate(c Circuit, count int, pct float64) {
 	chance := int(1 / pct)
 	if chance <= 0 {
 		chance = 1
 	}
 
 	for i := 0; i < count; i++ {
-		if b.Allow() {
+		if c.Allow() {
 			if (i%count)%chance == 0 {
-				b.Failure(0)
+				c.Failure(0)
 			} else {
-				b.Success(0)
+				c.Success(0)
 			}
 		}
 	}
@@ -29,7 +29,7 @@ func TestSimulateConcurrentBreakerHandlerWithPartialFailures(t *testing.T) {
 	now := time.Now()
 	after := make(chan time.Time)
 
-	cb := newCircuitBreaker(circuitBreakerConfig{
+	cb := newCircuit(circuitConfig{
 		Window:          seconds * time.Second,
 		MinObservations: requestsPerSecond / seconds,
 		FailureRatio:    0.05,
