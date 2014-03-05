@@ -5,10 +5,11 @@ import (
 	"time"
 )
 
-// Handler is an experimental implementation of a CircuitBreaker that returns
-// 503 with an empty body after 5% failure rate over a sliding window of 5
-// seconds with a 1 second cooldown period before retrying with a single
-// request.
+// Handler is an experimental implementation of a circuit-breaking
+// http.Handler that returns 503 with an empty body after 5% failure rate over
+// a sliding window of 5 seconds with a 1 second cooldown period before
+// retrying with a single request. Failure is defined as any response code
+// greater than or equal to 500.
 func Handler(next http.Handler) http.Handler {
 	return &handler{
 		circuit: NewCircuit(0.05),
