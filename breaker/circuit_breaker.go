@@ -5,8 +5,16 @@ import (
 )
 
 const (
-	DefaultWindow          = 5 * time.Second
-	DefaultCooldown        = 1 * time.Second
+	// DefaultWindow is the default number of per-second buckets that will be
+	// considered when calculating metrics on the circuit breaker.
+	DefaultWindow = 5 * time.Second
+
+	// DefaultCooldown is the default period a circuit will remain in the open
+	// state before allowing a single sentinel request through.
+	DefaultCooldown = 1 * time.Second
+
+	// DefaultMinObservations is the default number of observations that must
+	// be made before the circuit breaker
 	DefaultMinObservations = 10
 )
 

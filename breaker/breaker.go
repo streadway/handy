@@ -49,11 +49,11 @@ func (h *breakerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// DefaultBreaker is an experimental implementation of a CircuitBreaker that
-// returns 503 with an empty body after 5% failure rate over a sliding window
-// of 5 seconds with a 1 second cooldown period before retrying with a single
+// Handler is an experimental implementation of a CircuitBreaker that returns
+// 503 with an empty body after 5% failure rate over a sliding window of 5
+// seconds with a 1 second cooldown period before retrying with a single
 // request.
-func DefaultBreaker(next http.Handler) *breakerHandler {
+func Handler(next http.Handler) http.Handler {
 	return &breakerHandler{
 		breaker: NewCircuitBreaker(0.05),
 		next:    next,

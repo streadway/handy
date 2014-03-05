@@ -13,7 +13,7 @@ func (h code) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestCircuitStaysClosedWithSingleError(t *testing.T) {
-	h := DefaultBreaker(code(500))
+	h := Handler(code(500))
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
@@ -22,7 +22,7 @@ func TestCircuitStaysClosedWithSingleError(t *testing.T) {
 
 	h.ServeHTTP(resp, req)
 
-	if !h.breaker.Allow() {
+	if !h.(*breakerHandler).breaker.Allow() {
 		t.Fatal("expected breaker to be closed after one requests")
 	}
 }
@@ -34,7 +34,7 @@ func TestCircuitOpenWith5PercentError(t *testing.T) {
 		w.WriteHeader(code)
 	})
 
-	h := DefaultBreaker(backend)
+	h := Handler(backend)
 
 	for i := 1; i <= 100; i++ {
 		resp := httptest.NewRecorder()
