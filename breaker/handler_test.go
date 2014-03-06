@@ -13,7 +13,7 @@ func (h code) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestHandlerCircuitStaysClosedWithSingleError(t *testing.T) {
-	h := Handler(code(500))
+	h := Handler(NewBreaker(0.05), DefaultStatusCodeValidator, code(500))
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
@@ -22,7 +22,7 @@ func TestHandlerCircuitStaysClosedWithSingleError(t *testing.T) {
 
 	h.ServeHTTP(resp, req)
 
-	if !h.(*handler).circuit.Allow() {
+	if !h.(*handler).breaker.Allow() {
 		t.Fatal("expected circuit to be closed after one bad request")
 	}
 }
@@ -34,7 +34,7 @@ func TestHandlerCircuitOpenWith5PercentError(t *testing.T) {
 		w.WriteHeader(code)
 	})
 
-	h := Handler(backend)
+	h := Handler(NewBreaker(0.05), DefaultStatusCodeValidator, backend)
 
 	for i := 1; i <= 100; i++ {
 		resp := httptest.NewRecorder()

@@ -13,12 +13,12 @@ func TestTransportCircuitStaysClosedWithSingleError(t *testing.T) {
 	defer s.Close()
 
 	c := http.Client{
-		Transport: Transport(DefaultFailure, http.DefaultTransport),
+		Transport: Transport(NewBreaker(0.05), DefaultResponseValidator, http.DefaultTransport),
 	}
 
 	c.Get(s.URL)
 
-	if !c.Transport.(*transport).circuit.Allow() {
+	if !c.Transport.(*transport).breaker.Allow() {
 		t.Fatal("expected circuit to be closed after one bad request")
 	}
 }
@@ -31,7 +31,7 @@ func TestTransportCircuitOpenWith5PercentError(t *testing.T) {
 	defer fail.Close()
 
 	c := http.Client{
-		Transport: Transport(DefaultFailure, http.DefaultTransport),
+		Transport: Transport(NewBreaker(0.05), DefaultResponseValidator, http.DefaultTransport),
 	}
 
 	var lastError error

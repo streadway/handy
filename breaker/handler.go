@@ -5,25 +5,32 @@ import (
 	"time"
 )
 
-// Handler is an experimental implementation of a circuit-breaking
-// http.Handler that returns 503 with an empty body after 5% failure rate over
-// a sliding window of 5 seconds with a 1 second cooldown period before
-// retrying with a single request. Failure is defined as any response code
-// greater than or equal to 500.
-func Handler(next http.Handler) http.Handler {
+// StatusCodeValidator is a function that determines if a status code written
+// to a client by a circuit breaking Handler should count as a success or
+// failure. The DefaultStatusCodeValidator can be used in most situations.
+type StatusCodeValidator func(int) bool
+
+// Handler produces an http.Handler that's governed by the passed Breaker and
+// StatusCodeValidator. Responses written by the next http.Handler whose
+// status codes fail the validator signal failures to the breaker. Once the
+// breaker opens, incoming requests are terminated before being forwarded with
+// HTTP 503.
+func Handler(breaker Breaker, validator StatusCodeValidator, next http.Handler) http.Handler {
 	return &handler{
-		circuit: NewCircuit(0.05),
-		next:    next,
+		breaker:   breaker,
+		validator: validator,
+		next:      next,
 	}
 }
 
 type handler struct {
-	circuit Circuit
-	next    http.Handler
+	breaker   Breaker
+	validator StatusCodeValidator
+	next      http.Handler
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if h.circuit.Allow() {
+	if h.breaker.Allow() {
 		h.serveClosed(w, r)
 	} else {
 		h.serveOpened(w, r)
@@ -37,10 +44,10 @@ func (h *handler) serveClosed(w http.ResponseWriter, r *http.Request) {
 	h.next.ServeHTTP(cw, r)
 
 	duration := time.Since(begin)
-	if cw.code < 500 {
-		h.circuit.Success(duration)
+	if h.validator(cw.code) {
+		h.breaker.Success(duration)
 	} else {
-		h.circuit.Failure(duration)
+		h.breaker.Failure(duration)
 	}
 }
 
@@ -56,4 +63,10 @@ type codeWriter struct {
 func (w *codeWriter) WriteHeader(code int) {
 	w.code = code
 	w.ResponseWriter.WriteHeader(code)
+}
+
+// DefaultStatusCodeValidator considers any status code less than 500 to be a
+// success, from the perspective of a server. All other codes are failures.
+func DefaultStatusCodeValidator(code int) bool {
+	return code < 500
 }

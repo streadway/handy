@@ -12,27 +12,31 @@ var (
 	ErrCircuitOpen = errors.New("circuit open")
 )
 
-// Transport is an experimental implementation of a circuit-breaking
-// http.RoundTripper that returns ErrCircuitOpen after a 5% failure rate over
-// a sliding window of 5 seconds with a 1 second cooldown period before
-// retrying with a single request. Failure is defined by the user-provided
-// failure function.
-func Transport(failure func(*http.Response) bool, next http.RoundTripper) http.RoundTripper {
+// ResponseValidator is a function that determines if an http.Response
+// received by a circuit breaking Transport should count as a success or a
+// failure. The DefaultResponseValidator can be used in most situations.
+type ResponseValidator func(*http.Response) bool
+
+// Transport produces an http.RoundTripper that's governed by the passed
+// Breaker and ResponseValidator. Responses that fail the validator signal
+// failures to the breaker. Once the breaker opens, outgoing requests are
+// terminated before being forwarded with ErrCircuitOpen.
+func Transport(breaker Breaker, validator ResponseValidator, next http.RoundTripper) http.RoundTripper {
 	return &transport{
-		failure: failure,
-		circuit: NewCircuit(0.05),
-		next:    next,
+		breaker:   breaker,
+		validator: validator,
+		next:      next,
 	}
 }
 
 type transport struct {
-	failure func(*http.Response) bool
-	circuit Circuit
-	next    http.RoundTripper
+	breaker   Breaker
+	validator ResponseValidator
+	next      http.RoundTripper
 }
 
 func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if !t.circuit.Allow() {
+	if !t.breaker.Allow() {
 		return nil, ErrCircuitOpen
 	}
 
@@ -40,18 +44,17 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := t.next.RoundTrip(req)
 
 	duration := time.Since(begin)
-	if err != nil || t.failure(resp) {
-		t.circuit.Failure(duration)
+	if err != nil || !t.validator(resp) {
+		t.breaker.Failure(duration)
 	} else {
-		t.circuit.Success(duration)
+		t.breaker.Success(duration)
 	}
 
-	// TODO metrics
 	return resp, err
 }
 
-// DefaultFailure reports any response status code greater than or equal to
-// 400 as a failure.
-func DefaultFailure(resp *http.Response) bool {
-	return resp.StatusCode >= 400
+// DefaultResponseValidator considers any status code less than 400 to be a
+// success, from the perspective of a client. All other codes are failures.
+func DefaultResponseValidator(resp *http.Response) bool {
+	return resp.StatusCode < 400
 }
