@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func failrate(b CircuitBreaker, count int, pct float64) {
+func failrate(b Breaker, count int, pct float64) {
 	chance := int(1 / pct)
 	if chance <= 0 {
 		chance = 1
@@ -29,7 +29,7 @@ func TestSimulateConcurrentBreakerHandlerWithPartialFailures(t *testing.T) {
 	now := time.Now()
 	after := make(chan time.Time)
 
-	cb := newCircuitBreaker(circuitBreakerConfig{
+	b := newBreaker(breakerConfig{
 		Window:          seconds * time.Second,
 		MinObservations: requestsPerSecond / seconds,
 		FailureRatio:    0.05,
@@ -38,41 +38,41 @@ func TestSimulateConcurrentBreakerHandlerWithPartialFailures(t *testing.T) {
 	})
 
 	for i := 0; i < seconds; i++ {
-		failrate(cb, requestsPerSecond, 0.20)
+		failrate(b, requestsPerSecond, 0.20)
 		now = now.Add(time.Second)
 	}
 
-	if got, want := cb.Allow(), false; got != want {
+	if got, want := b.Allow(), false; got != want {
 		t.Fatalf("expected to trip at a high failure rate")
 	}
 
 	after <- now
 
-	if got, want := cb.Allow(), true; got != want {
+	if got, want := b.Allow(), true; got != want {
 		t.Fatalf("expected to allow in half-open state after cooldown")
 	}
 
-	cb.Success(time.Duration(0))
+	b.Success(time.Duration(0))
 
-	if got, want := cb.Allow(), true; got != want {
+	if got, want := b.Allow(), true; got != want {
 		t.Fatalf("expected to close after success from half-open")
 	}
 
 	for i := 0; i < seconds; i++ {
-		failrate(cb, requestsPerSecond, 0.02)
+		failrate(b, requestsPerSecond, 0.02)
 		now = now.Add(time.Second)
 	}
 
-	if got, want := cb.Allow(), true; got != want {
+	if got, want := b.Allow(), true; got != want {
 		t.Fatalf("expected to stay closed after lower error rate")
 	}
 
 	for i := 0; i < seconds; i++ {
-		failrate(cb, requestsPerSecond, 0.06)
+		failrate(b, requestsPerSecond, 0.06)
 		now = now.Add(time.Second)
 	}
 
-	if got, want := cb.Allow(), false; got != want {
+	if got, want := b.Allow(), false; got != want {
 		t.Fatalf("expected to open after high error rate again")
 	}
 }

@@ -1,54 +1,116 @@
 package breaker
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
+	"time"
 )
 
-type code int
+func TestNewBreakerAllows(t *testing.T) {
+	c := NewBreaker(0)
 
-func (h code) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(int(h))
-}
-
-func TestCircuitStaysClosedWithSingleError(t *testing.T) {
-	h := DefaultBreaker(code(500))
-
-	resp := httptest.NewRecorder()
-	req := &http.Request{
-		Method: "GET",
-	}
-
-	h.ServeHTTP(resp, req)
-
-	if !h.breaker.Allow() {
-		t.Fatal("expected breaker to be closed after one requests")
+	if !c.Allow() {
+		t.Fatal("expected new breaker to be closed")
 	}
 }
 
-func TestCircuitOpenWith5PercentError(t *testing.T) {
-	lastResponse := 200
-	code := 200
-	backend := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(code)
+func TestBreakerSuccessClosesOpenBreaker(t *testing.T) {
+	b := NewBreaker(0)
+
+	b.trip()
+
+	if b.Allow() {
+		t.Fatal("expected new breaker to be open after being tripped")
+	}
+
+	b.Success(0)
+
+	if !b.Allow() {
+		t.Fatal("expected new breaker to be closed after a success")
+	}
+}
+
+func TestBreakerFailTripsBreakerWithASingleFailureAt0PrecentThreshold(t *testing.T) {
+	b := NewBreaker(0)
+
+	for i := 0; i < 100; i++ {
+		b.Success(0)
+	}
+
+	b.Failure(0)
+
+	if b.Allow() {
+		t.Fatalf("expected failure to not trip circuit at 0%% threshold")
+	}
+}
+
+func TestBreakerFailDoesNotTripBreakerAt1PrecentThreshold(t *testing.T) {
+	const threshold = 0.01
+
+	c := NewBreaker(threshold)
+
+	for i := 0; i < 100-100*threshold; i++ {
+		c.Success(0)
+	}
+
+	for i := 0; i < 100*threshold; i++ {
+		c.Failure(0)
+	}
+
+	if !c.Allow() {
+		t.Fatalf("expected failure to not trip circuit at 1%% threshold")
+	}
+
+	c.Failure(0)
+
+	if c.Allow() {
+		t.Fatal("expected failure to trip over the threshold")
+	}
+}
+
+func TestBreakerAllowsASingleRequestAfterNapTime(t *testing.T) {
+	after := make(chan time.Time)
+
+	c := newBreaker(breakerConfig{
+		Window: 5 * time.Second,
+		After:  func(time.Duration) <-chan time.Time { return after },
 	})
 
-	h := DefaultBreaker(backend)
+	c.trip()
 
-	for i := 1; i <= 100; i++ {
-		resp := httptest.NewRecorder()
-		req := &http.Request{Method: "GET"}
+	after <- time.Now()
 
-		if i >= 95 {
-			code = 500
-		}
-
-		h.ServeHTTP(resp, req)
-		lastResponse = resp.Code
+	if !c.Allow() {
+		t.Fatal("expected to allow once after nap time")
 	}
 
-	if lastResponse != 503 {
-		t.Fatalf("expected breaker to be open with 503 after 5%% error rate, got last response: %d", lastResponse)
+	if c.Allow() {
+		t.Fatal("expected to only allow once after nap time")
+	}
+}
+
+func TestBreakerClosesAfterSuccessAfterNapTime(t *testing.T) {
+	after := make(chan time.Time)
+
+	b := newBreaker(breakerConfig{
+		Window: 5 * time.Second,
+		After:  func(time.Duration) <-chan time.Time { return after },
+	})
+
+	b.trip()
+
+	after <- time.Now()
+
+	if !b.Allow() {
+		t.Fatal("expected to allow once after nap time")
+	}
+
+	b.Success(0)
+
+	if !b.Allow() {
+		t.Fatal("expected to close after first success")
+	}
+
+	if !b.Allow() {
+		t.Fatal("expected to stay closed after first success")
 	}
 }
