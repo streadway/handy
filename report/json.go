@@ -43,7 +43,11 @@ func JSON(writer io.Writer, next http.Handler) http.Handler {
 			},
 		}
 
+		start := time.Now()
+
 		next.ServeHTTP(writer, r)
+
+		writer.event.Ms = int(time.Since(start) / time.Millisecond)
 
 		out.Encode(writer.event)
 	})

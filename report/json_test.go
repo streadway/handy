@@ -11,14 +11,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestJSON(t *testing.T) {
+	const worktime = 10 * time.Millisecond
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "http://example.com/foo", nil)
 	out := &bytes.Buffer{}
 
-	h := JSON(out, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	h := JSON(out, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		time.Sleep(worktime)
+	}))
 
 	h.ServeHTTP(res, req)
 
@@ -34,15 +38,24 @@ func TestJSON(t *testing.T) {
 		"method": "GET",
 		"proto":  "HTTP/1.1",
 		"time":   "",
+		"ms":     "",
 	} {
-		if want == "" {
-			if _, ok := report[field]; !ok {
-				t.Fatalf("expected to report %q with any value, did not", field)
-			}
-		} else {
+		if _, ok := report[field]; !ok {
+			t.Fatalf("expected to report %q with any value, did not", field)
+		}
+
+		if want != "" {
 			if got := report[field]; got != want {
 				t.Fatalf("expected to report %q with %v, got %v", field, want, got)
 			}
+		}
+	}
+
+	if ms, ok := report["ms"].(float64); !ok {
+		t.Fatalf("ms is not a number")
+	} else {
+		if want, got, delta := worktime, time.Duration(ms)*time.Millisecond, time.Millisecond; want+delta < got || want-delta > got {
+			t.Fatalf("duration falls outside of %s±%s, got: %d", want, delta, got)
 		}
 	}
 }
