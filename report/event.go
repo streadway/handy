@@ -21,8 +21,8 @@ type Event struct {
 	Path           string    `json:"path,omitempty"`
 	Proto          string    `json:"proto,omitempty"`
 	Status         int       `json:"status,omitempty"`
-	Ms             int       `json:"ms,omitempty"`
-	Size           int64     `json:"size,omitempty"`
+	Ms             int       `json:"ms"`
+	Size           int64     `json:"size"`
 	RemoteAddr     string    `json:"remote_addr,omitempty"`
 	ForwardedFor   string    `json:"forwarded_for,omitempty"`
 	ForwardedProto string    `json:"forwarded_proto,omitempty"`

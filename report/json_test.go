@@ -30,14 +30,16 @@ func TestMultipleJSONLogLines(t *testing.T) {
 	const worktime = 10 * time.Millisecond
 	const requests = 10
 
-	r, w := io.Pipe()
-	h := JSON(w, sleeper(worktime))
+	var (
+		r, w    = io.Pipe()
+		handler = JSON(w, sleeper(worktime))
+		logger  = json.NewDecoder(r)
+	)
 
 	for i := 0; i < requests; i++ {
-		go get(h, "http://example.org/foo")
+		go get(handler, "http://example.org/foo")
 	}
 
-	logger := json.NewDecoder(r)
 	for i := 0; i < requests; i++ {
 		report := map[string]interface{}{}
 		if err := logger.Decode(&report); err != nil {
@@ -51,6 +53,7 @@ func TestMultipleJSONLogLines(t *testing.T) {
 			"method": "GET",
 			"proto":  "HTTP/1.1",
 			"time":   "",
+			"size":   "",
 			"ms":     "",
 		} {
 			if _, ok := report[field]; !ok {
@@ -71,5 +74,24 @@ func TestMultipleJSONLogLines(t *testing.T) {
 				t.Fatalf("duration falls outside of %s±%s, got: %d", want, delta, got)
 			}
 		}
+	}
+}
+
+func TestJSONShouldHaveMs(t *testing.T) {
+	var (
+		r, w    = io.Pipe()
+		logger  = json.NewDecoder(r)
+		handler = JSON(w, sleeper(0))
+	)
+
+	go get(handler, "http://example.org/foo")
+
+	report := map[string]interface{}{}
+	if err := logger.Decode(&report); err != nil {
+		t.Fatalf("expected to decode json report, got: %q", err)
+	}
+
+	if _, haveMs := report["ms"]; !haveMs {
+		t.Fatalf("expected report to include ms, got: %v", report)
 	}
 }
