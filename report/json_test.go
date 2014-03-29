@@ -6,56 +6,70 @@
 package report
 
 import (
-	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
 
-func TestJSON(t *testing.T) {
-	const worktime = 10 * time.Millisecond
+func get(h http.Handler, url string) {
 	res := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "http://example.com/foo", nil)
-	out := &bytes.Buffer{}
-
-	h := JSON(out, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		time.Sleep(worktime)
-	}))
-
+	req, _ := http.NewRequest("GET", url, nil)
 	h.ServeHTTP(res, req)
+}
 
-	report := map[string]interface{}{}
-	if err := json.Unmarshal(out.Bytes(), &report); err != nil {
-		t.Fatalf("expected to decode json report, got: %q", err)
+type sleeper time.Duration
+
+func (h sleeper) ServeHTTP(http.ResponseWriter, *http.Request) {
+	time.Sleep(time.Duration(h))
+}
+
+func TestMultipleJSONLogLines(t *testing.T) {
+	const worktime = 10 * time.Millisecond
+	const requests = 10
+
+	r, w := io.Pipe()
+	h := JSON(w, sleeper(worktime))
+
+	for i := 0; i < requests; i++ {
+		go get(h, "http://example.org/foo")
 	}
 
-	t.Log(report)
-
-	for field, want := range map[string]interface{}{
-		"status": float64(200),
-		"method": "GET",
-		"proto":  "HTTP/1.1",
-		"time":   "",
-		"ms":     "",
-	} {
-		if _, ok := report[field]; !ok {
-			t.Fatalf("expected to report %q with any value, did not", field)
+	logger := json.NewDecoder(r)
+	for i := 0; i < requests; i++ {
+		report := map[string]interface{}{}
+		if err := logger.Decode(&report); err != nil {
+			t.Fatalf("expected to decode json report, got: %q", err)
 		}
 
-		if want != "" {
-			if got := report[field]; got != want {
-				t.Fatalf("expected to report %q with %v, got %v", field, want, got)
+		t.Log(report)
+
+		for field, want := range map[string]interface{}{
+			"status": float64(200),
+			"method": "GET",
+			"proto":  "HTTP/1.1",
+			"time":   "",
+			"ms":     "",
+		} {
+			if _, ok := report[field]; !ok {
+				t.Fatalf("expected to report %q with any value, did not", field)
+			}
+
+			if want != "" {
+				if got := report[field]; got != want {
+					t.Fatalf("expected to report %q with %v, got %v", field, want, got)
+				}
 			}
 		}
-	}
 
-	if ms, ok := report["ms"].(float64); !ok {
-		t.Fatalf("ms is not a number")
-	} else {
-		if want, got, delta := worktime, time.Duration(ms)*time.Millisecond, time.Millisecond; want+delta < got || want-delta > got {
-			t.Fatalf("duration falls outside of %s±%s, got: %d", want, delta, got)
+		if ms, ok := report["ms"].(float64); !ok {
+			t.Fatalf("ms is not a number")
+		} else {
+			if want, got, delta := worktime, time.Duration(ms)*time.Millisecond, time.Millisecond; want+delta < got || want-delta > got {
+				t.Fatalf("duration falls outside of %s±%s, got: %d", want, delta, got)
+			}
 		}
 	}
 }
