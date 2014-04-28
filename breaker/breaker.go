@@ -112,15 +112,15 @@ func (b breaker) shouldOpen(m *metric) bool {
 sed -n 's/^dot//p' | dot -Tsvg -ostates.svg
 dot digraph {
 dot  reset -> closed    [label="stats and time reset"]
-dot  closed -> tripped	[label="failed and failure rate exceeded"]
-dot  closed -> closed		[label="succeed and update stats"]
-dot  closed -> closed		[label="failed and update stats"]
+dot  closed -> tripped  [label="failed and failure rate exceeded"]
+dot  closed -> closed   [label="succeed and update stats"]
+dot  closed -> closed   [label="failed and update stats"]
 dot
-dot  tripped -> open		[label="timeout scheduled"]
-dot  open -> reset      [label="succeed"]
-dot  open -> halfopen   [label="timeout expired"]
-dot  halfopen -> open   [label="failed"]
-dot  halfopen -> open   [label="allowed one"]
+dot  tripped -> open      [label="timeout scheduled"]
+dot  open -> reset        [label="succeed"]
+dot  open -> halfopen     [label="timeout expired"]
+dot  halfopen -> tripped  [label="failed"]
+dot  halfopen -> tripped  [label="allowed one"]
 dot }
 */
 func (b breaker) run() {
@@ -173,7 +173,7 @@ func (b breaker) run() {
 			case <-b.success:
 				state = reset
 			case <-b.failure:
-				state = open
+				state = tripped
 			case state = <-b.force:
 			}
 		}

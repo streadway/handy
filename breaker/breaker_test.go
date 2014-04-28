@@ -114,3 +114,35 @@ func TestBreakerClosesAfterSuccessAfterNapTime(t *testing.T) {
 		t.Fatal("expected to stay closed after first success")
 	}
 }
+
+func TestBreakerReschedulesOnFailureInHalfOpen(t *testing.T) {
+	afters := make(chan chan time.Time)
+
+	b := newBreaker(breakerConfig{
+		Window: 5 * time.Second,
+		After: func(time.Duration) <-chan time.Time {
+			after := make(chan time.Time)
+			afters <- after
+			return after
+		},
+	})
+
+	b.trip()
+
+	(<-afters) <- time.Now()
+
+	b.Failure(0)
+
+	select {
+	case after := <-afters:
+		after <- time.Now()
+	case <-time.After(time.Millisecond):
+		t.Fatal("expected to reschedule after failure in half-open, did not")
+	}
+
+	b.Success(0)
+
+	if !b.Allow() {
+		t.Fatal("expected to close after failure in half-open")
+	}
+}
