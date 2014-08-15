@@ -41,9 +41,9 @@ func TestGetPreflightGet(t *testing.T) {
 		t.Fatalf("expected Access-Control-Origin for OPTIONS, got: %s", hdr)
 	}
 
-	for _, hdr := range []string{"Origin", "Accept", "Content-Type"} {
+	for _, hdr := range []string{"Origin", "Accept", "Accept-Encoding", "Authorization", "Content-Type"} {
 		if hdrs := resp.HeaderMap.Get("Access-Control-Allow-Headers"); !strings.Contains(hdrs, hdr) {
-			t.Fatalf("expected Access-Control-Allow-Headers to include Origin, got: %s", hdrs)
+			t.Fatalf("expected Access-Control-Allow-Headers to include %s, got: %s", hdr, hdrs)
 		}
 	}
 }
@@ -69,9 +69,9 @@ func TestGet(t *testing.T) {
 		t.Fatalf("expected Access-Control-Origin for OPTIONS, got: %s", hdr)
 	}
 
-	for _, hdr := range []string{"Origin", "Accept", "Content-Type"} {
+	for _, hdr := range []string{"Origin", "Accept", "Accept-Encoding", "Authorization", "Content-Type"} {
 		if hdrs := resp.HeaderMap.Get("Access-Control-Allow-Headers"); !strings.Contains(hdrs, hdr) {
-			t.Fatalf("expected Access-Control-Allow-Headers to include Origin, got: %s", hdrs)
+			t.Fatalf("expected Access-Control-Allow-Headers to include %s, got: %s", hdr, hdrs)
 		}
 	}
 }
