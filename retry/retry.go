@@ -21,9 +21,17 @@ type Attempt struct {
 // Delayer sleeps or selects any amount of time for each attempt.
 type Delayer func(Attempt)
 
+type Decision int
+
+const(
+	Yes Decision = 2
+	Maybe Decision = 1
+	No Decision = 0
+)
+
 // Retryer chooses whether or not to retry this request, and if not, the error
 // to return instead of the prior error.  Composing Retryers with Retry.
-type Retryer func(Attempt) (bool, error)
+type Retryer func(Attempt) (Decision, error)
 
 type Transport struct {
 	// Delay is called for attempts that are retried.  If nil, no delay will be used.
@@ -48,8 +56,10 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	for count, retry := 1, true; retry; count++ {
+		// Perform request
 		res, err := t.Next.RoundTrip(req)
 
+		// Collect result of attempt
 		attempt := Attempt{
 			Start:    start,
 			Count:    uint(count),
@@ -58,16 +68,20 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			Response: res,
 		}
 
+		// Evaluate attempt
 		retry, retryErr := retryer(attempt)
 
+		// Override error by retrier evaluation
 		if retryErr != nil {
-			return res, retryErr
+			err = retryErr
 		}
 
-		if !retry {
+		// Return response and error if we did not evaluate retrying decision to Yes
+		if retry != Yes {
 			return res, err
 		}
 
+		// Delay next attempt
 		if t.Delay != nil {
 			t.Delay(attempt)
 		}
