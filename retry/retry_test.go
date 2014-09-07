@@ -26,7 +26,7 @@ func TestRetryAfterCount(t *testing.T) {
 		req, _ = http.NewRequest("GET", "http://example/test", nil)
 		next   = &testRoundTrip{err: fmt.Errorf("next"), resp: nil}
 		trans  = Transport{
-			Retry: Retry(Errors(), Max(attempts)),
+			Retry: RetryBy(Errors(), Max(attempts)),
 			Next:  next,
 		}
 	)
@@ -50,7 +50,7 @@ func TestNoRetry(t *testing.T) {
 		req, _ = http.NewRequest("GET", "http://example/test", nil)
 		next   = &testRoundTrip{err: nil, resp: &http.Response{StatusCode: 200}}
 		trans  = Transport{
-			Retry: Retry(Errors(), Max(attempts)),
+			Retry: RetryBy(Errors(), Max(attempts)),
 			Next:  next,
 		}
 	)
@@ -58,7 +58,7 @@ func TestNoRetry(t *testing.T) {
 	resp, err := trans.RoundTrip(req)
 
 	if err != nil {
-		t.Fatalf("expected error to be nil but got: %s", err.Error())		
+		t.Fatalf("expected error to be nil but got: %s", err.Error())
 	}
 
 	if resp == nil {
@@ -73,7 +73,7 @@ func TestRetryDelay(t *testing.T) {
 		req, _ = http.NewRequest("GET", "http://example/test", nil)
 		next   = &testRoundTrip{err: fmt.Errorf("next")}
 		trans  = Transport{
-			Retry: Retry(Errors(), Max(attempts)),
+			Retry: RetryBy(Errors(), Max(attempts)),
 			Next:  next,
 			Delay: Constant(500 * time.Millisecond),
 		}

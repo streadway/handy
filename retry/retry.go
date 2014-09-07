@@ -23,10 +23,10 @@ type Delayer func(Attempt)
 
 type Decision int
 
-const(
-	Yes Decision = 2
-	Maybe Decision = 1
-	No Decision = 0
+const (
+	Retry  Decision = 2
+	Ignore Decision = 1
+	Abort  Decision = 0
 )
 
 // Retryer chooses whether or not to retry this request, and if not, the error
@@ -76,8 +76,8 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			err = retryErr
 		}
 
-		// Return response and error if we did not evaluate retrying decision to Yes
-		if retry != Yes {
+		// Return response and error if we did not evaluate to Retry decision
+		if retry != Retry {
 			return res, err
 		}
 

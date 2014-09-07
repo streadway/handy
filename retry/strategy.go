@@ -6,47 +6,47 @@ import (
 	"time"
 )
 
-var DefaultRetryer = Retry(Max(10), Timeout(30*time.Second), EOF(), Over(300))
+var DefaultRetryer = RetryBy(Max(10), Timeout(30*time.Second), EOF(), Over(300))
 
 type strategies []Retryer
 
-// We retry (output Yes) if one or more retriers evaluate to Yes and none says No 
-// To output Yes some can also evaluate to Maybe as long as one evaluates to Yes. 
+// We retry (output Yes) if one or more retriers evaluate to Yes and none says No
+// To output Yes some can also evaluate to Maybe as long as one evaluates to Yes.
 // If all evaluate to Maybe we will return Maybe.
 // If one evaluates to No we'll return No regardless what the others returned
-func (s strategies) Retry(a Attempt) (Decision, error) {
+func (s strategies) RetryBy(a Attempt) (Decision, error) {
 	var errorResult error
-	retryResult := Maybe
+	retryResult := Ignore
 	for _, try := range s {
-		retry, err := try(a);
+		retry, err := try(a)
 
 		// If one evaluates to No we can return immediatly and deliver the related error
-		if retry == No {
-			return retry, err 
+		if retry == Abort {
+			return retry, err
 		}
 
 		// Otherwise evaluate further
 		retryResult *= retry
 
-		// Resulting error will be last error output by a retrier evaluating to Yes or Maybe
+		// Resulting error will be last error output by a retrier evaluating to Retry or Ignore
 		if err != nil {
-	    	errorResult = err
+			errorResult = err
 		}
 	}
 
-	// Truncate to Yes
-	if retryResult > Yes {
-		retryResult = Yes
+	// Truncate to Retry
+	if retryResult > Retry {
+		retryResult = Retry
 	}
 
 	return retryResult, errorResult
 }
 
-func Retry(conditions ...Retryer) Retryer {
-	return strategies(conditions).Retry
+func RetryBy(conditions ...Retryer) Retryer {
+	return strategies(conditions).RetryBy
 }
 
-// "Forbidders" (return No or Maybe)
+// "Forbidders" (return Abort or Ignore)
 
 type TimeoutError struct {
 	Duration time.Duration
@@ -60,9 +60,9 @@ func (e TimeoutError) Error() string {
 func Timeout(limit time.Duration) Retryer {
 	return func(a Attempt) (Decision, error) {
 		if time.Since(a.Start) >= limit {
-			return No, TimeoutError{limit}
+			return Abort, TimeoutError{limit}
 		}
-		return Maybe, nil
+		return Ignore, nil
 	}
 }
 
@@ -78,21 +78,21 @@ func (e MaxError) Error() string {
 func Max(limit uint) Retryer {
 	return func(a Attempt) (Decision, error) {
 		if a.Count >= limit {
-			return No, MaxError{limit}
+			return Abort, MaxError{limit}
 		}
-		return Maybe, nil
+		return Ignore, nil
 	}
 }
 
-// "Validators" (return Yes or Maybe)
+// "Validators" (return Retry or Ignore)
 
 // Errors errors when there is any error
 func Errors() Retryer {
 	return func(a Attempt) (Decision, error) {
 		if a.Err != nil {
-			return Yes, a.Err
+			return Retry, a.Err
 		}
-		return Maybe, nil
+		return Ignore, nil
 	}
 }
 
@@ -100,9 +100,9 @@ func Errors() Retryer {
 func EOF() Retryer {
 	return func(a Attempt) (Decision, error) {
 		if a.Err == io.EOF {
-			return Yes, io.EOF
+			return Retry, io.EOF
 		}
-		return Maybe, nil
+		return Ignore, nil
 	}
 }
 
@@ -110,8 +110,8 @@ func EOF() Retryer {
 func Over(statusCode int) Retryer {
 	return func(a Attempt) (Decision, error) {
 		if a.Response == nil || a.Response.StatusCode >= statusCode {
-			return Yes, nil
+			return Retry, nil
 		}
-		return Maybe, nil
+		return Ignore, nil
 	}
 }
