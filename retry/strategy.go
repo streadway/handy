@@ -6,54 +6,37 @@ import (
 	"time"
 )
 
-var DefaultRetryer = RetryBy(Max(10), Timeout(30*time.Second), EOF(), Over(300))
+var DefaultRetryer = All(Max(10), Timeout(30*time.Second), EOF(), Over(300))
 
-type strategies []Retryer
+// All attempts all Retryers.  Returns Abort and the error on the first Abort.
+// If at least one returns Retry then Retry with nil error is returned.
+// Otherwise Ignore with nil error is returned.
+func All(conditions ...Retryer) Retryer {
+	return func(a Attempt) (Decision, error) {
+		final := Ignore
+		for _, try := range conditions {
+			decision, err := try(a)
 
-// We retry (output Retry) if one or more retriers evaluate to Retry and none says Abort
-// To output Retry some can also evaluate to Ignore as long as one evaluates to Retry.
-// If all evaluate to Ignore we will return Ignore (this should be output for a successful attempt whose response will be returned as is and we may stop retrying).
-// If one evaluates to Abort we'll return Abort regardless what the others returned
-func (s strategies) RetryBy(a Attempt) (Decision, error) {
-	var errorResult error
-	retryResult := Ignore
-	for _, try := range s {
-		retry, err := try(a)
-
-		// If one evaluates to No we can return immediatly and deliver the related error
-		if retry == Abort {
-			return retry, err
+			switch decision {
+			case Retry:
+				final = Retry
+			case Abort:
+				return Abort, err
+			}
 		}
-
-		// Otherwise evaluate further
-		retryResult *= retry
-
-		// Resulting error will be last error output by a retrier evaluating to Retry or Ignore
-		if err != nil {
-			errorResult = err
-		}
+		return final, nil
 	}
-
-	// Truncate to Retry
-	if retryResult > Retry {
-		retryResult = Retry
-	}
-
-	return retryResult, errorResult
-}
-
-func RetryBy(conditions ...Retryer) Retryer {
-	return strategies(conditions).RetryBy
 }
 
 // "Forbidders" (return Abort or Ignore)
 
+// TimeoutError is returned from RoundTrip when the time limit has been reached.
 type TimeoutError struct {
-	Duration time.Duration
+	limit time.Duration
 }
 
 func (e TimeoutError) Error() string {
-	return fmt.Sprintf("timed out after %.2f seconds", e.Duration.Seconds())
+	return fmt.Sprintf("retry timed out after %s", e.limit)
 }
 
 // Timeout errors after a duration of time passes since the first attempt.
@@ -66,12 +49,13 @@ func Timeout(limit time.Duration) Retryer {
 	}
 }
 
+// MaxError is returned from RoundTrip when the maximum attempts has been reached.
 type MaxError struct {
-	Attempts uint
+	limit uint
 }
 
 func (e MaxError) Error() string {
-	return fmt.Sprintf("retry limit exceeded after %d attempts", e.Attempts)
+	return fmt.Sprintf("retry limit exceeded after %d attempts", e.limit)
 }
 
 // Max errors after a limited number of attempts
@@ -86,11 +70,11 @@ func Max(limit uint) Retryer {
 
 // "Validators" (return Retry or Ignore)
 
-// Errors errors when there is any error
+// Errors returns Retry when the attempt produced an error.
 func Errors() Retryer {
 	return func(a Attempt) (Decision, error) {
 		if a.Err != nil {
-			return Retry, a.Err
+			return Retry, nil
 		}
 		return Ignore, nil
 	}
@@ -100,7 +84,7 @@ func Errors() Retryer {
 func EOF() Retryer {
 	return func(a Attempt) (Decision, error) {
 		if a.Err == io.EOF {
-			return Retry, io.EOF
+			return Retry, nil
 		}
 		return Ignore, nil
 	}
@@ -109,7 +93,10 @@ func EOF() Retryer {
 // Over retries when a response is missing or the status code is over a value like 300
 func Over(statusCode int) Retryer {
 	return func(a Attempt) (Decision, error) {
-		if a.Response == nil || a.Response.StatusCode >= statusCode {
+		if a.Response == nil {
+			return Ignore, nil
+		}
+		if a.Response.StatusCode >= statusCode {
 			return Retry, nil
 		}
 		return Ignore, nil

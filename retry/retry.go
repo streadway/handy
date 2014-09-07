@@ -21,16 +21,17 @@ type Attempt struct {
 // Delayer sleeps or selects any amount of time for each attempt.
 type Delayer func(Attempt)
 
+// Decision signals the intent of a Retryer
 type Decision int
 
 const (
-	Retry  Decision = 2
-	Ignore Decision = 1
-	Abort  Decision = 0
+	Ignore Decision = iota
+	Retry
+	Abort
 )
 
-// Retryer chooses whether or not to retry this request, and if not, the error
-// to return instead of the prior error.  Composing Retryers with Retry.
+// Retryer chooses whether or not to retry this request.  The error is only
+// valid when the Retyer returns Abort.
 type Retryer func(Attempt) (Decision, error)
 
 type Transport struct {
