@@ -10,10 +10,10 @@ var DefaultRetryer = RetryBy(Max(10), Timeout(30*time.Second), EOF(), Over(300))
 
 type strategies []Retryer
 
-// We retry (output Yes) if one or more retriers evaluate to Yes and none says No
-// To output Yes some can also evaluate to Maybe as long as one evaluates to Yes.
-// If all evaluate to Maybe we will return Maybe.
-// If one evaluates to No we'll return No regardless what the others returned
+// We retry (output Retry) if one or more retriers evaluate to Retry and none says Abort
+// To output Retry some can also evaluate to Ignore as long as one evaluates to Retry.
+// If all evaluate to Ignore we will return Ignore (this should be output for a successful attempt whose response will be returned as is and we may stop retrying).
+// If one evaluates to Abort we'll return Abort regardless what the others returned
 func (s strategies) RetryBy(a Attempt) (Decision, error) {
 	var errorResult error
 	retryResult := Ignore
