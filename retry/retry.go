@@ -18,6 +18,13 @@ type Attempt struct {
 	*http.Response
 }
 
+func (a Attempt) StatusCode() int {
+	if a.Response != nil {
+		return a.Response.StatusCode
+	}
+	return 0
+}
+
 // Delayer sleeps or selects any amount of time for each attempt.
 type Delayer func(Attempt)
 
