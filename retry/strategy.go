@@ -14,8 +14,8 @@ var DefaultRetryer = All(Max(10), Timeout(30*time.Second), EOF(), Over(300))
 func All(conditions ...Retryer) Retryer {
 	return func(a Attempt) (Decision, error) {
 		final := Ignore
-		for _, try := range conditions {
-			decision, err := try(a)
+		for _, eval := range conditions {
+			decision, err := eval(a)
 
 			switch decision {
 			case Retry:
