@@ -33,7 +33,6 @@ func All(conditions ...Retryer) Retryer {
 // TimeoutError is returned from RoundTrip when the time limit has been reached.
 type TimeoutError struct {
 	limit time.Duration
-	LastStatusCode int
 }
 
 func (e TimeoutError) Error() string {
@@ -44,7 +43,7 @@ func (e TimeoutError) Error() string {
 func Timeout(limit time.Duration) Retryer {
 	return func(a Attempt) (Decision, error) {
 		if time.Since(a.Start) >= limit {
-			return Abort, TimeoutError{limit, a.StatusCode()}
+			return Abort, TimeoutError{limit}
 		}
 		return Ignore, nil
 	}
@@ -53,7 +52,6 @@ func Timeout(limit time.Duration) Retryer {
 // MaxError is returned from RoundTrip when the maximum attempts has been reached.
 type MaxError struct {
 	limit uint
-	LastStatusCode int
 }
 
 func (e MaxError) Error() string {
@@ -64,7 +62,7 @@ func (e MaxError) Error() string {
 func Max(limit uint) Retryer {
 	return func(a Attempt) (Decision, error) {
 		if a.Count >= limit {
-			return Abort, MaxError{limit, a.StatusCode()}
+			return Abort, MaxError{limit}
 		}
 		return Ignore, nil
 	}

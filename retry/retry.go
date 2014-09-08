@@ -19,10 +19,10 @@ type Attempt struct {
 }
 
 func (a Attempt) StatusCode() int {
-	if a.Response != nil {
-		return a.Response.StatusCode
+	if a.Response == nil {
+		return 0
 	}
-	return 0
+	return a.Response.StatusCode
 }
 
 // Delayer sleeps or selects any amount of time for each attempt.
@@ -79,22 +79,22 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		// Evaluate attempt
 		retry, retryErr := retryer(attempt)
 
+		// Returns either the valid response or an error coming from the underlying Transport
+		if retry == Ignore {
+			return resp, err
+		}
+
 		// Close the response body when we wont use it anymore (Retry or Abort)
-		if resp != nil && (retry == Retry || retry == Abort) {
+		if resp != nil {
 			resp.Body.Close()
 		}
 
-		switch(retry) {
-		case Retry:
-			// Retries (stay in the loop)
-			break
-		case Ignore:
-			// Returns either the valid response or an error coming from the underlying Transport
-			return resp, err
-		case Abort:
-			// Return the error explaining why we aborted and nil as response
+		// Return the error explaining why we aborted and nil as response
+		if retry == Abort {
 			return nil, retryErr
 		}
+
+		// ... Retries (stay the loop)
 
 		// Delay next attempt
 		if t.Delay != nil {
