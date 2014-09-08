@@ -8,9 +8,9 @@ import (
 
 var DefaultRetryer = All(Max(10), Timeout(30*time.Second), EOF(), Over(300))
 
-// All attempts all Retryers.  Returns Abort and the error on the first Abort.
-// If at least one returns Retry then Retry with nil error is returned.
-// Otherwise Ignore with nil error is returned.
+// All aggregates decisions from Retryers for an attempt.  All returns Abort
+// and the error on the first Abort.  If at least one returns Retry All returns
+// Retry with nil error.  Otherwise All returns Ignore with nil error.
 func All(conditions ...Retryer) Retryer {
 	return func(a Attempt) (Decision, error) {
 		final := Ignore
