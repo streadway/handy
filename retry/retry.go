@@ -97,6 +97,16 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	panic("unreachable")
 }
 
-func (t *Transport) CancelRequest(req *Request) {
-	t.Next.CancelRequest(req)
+// CancelRequest implements the canceler interface in order to permit the client to cancel requests if it reaches timeout (to free the TCP connection resource)
+// We are performing type assertion to check if the underlying transport implements the canceler interface. If not, we return silently.
+// Note: Performs interface type assertion on the transport in a similar way as in http://golang.org/src/pkg/net/http/client.go
+func (t *Transport) CancelRequest(req *http.Request) {
+	type canceler interface {
+   		CancelRequest(*http.Request)
+   	}
+   	tr, ok := t.Next.(canceler)
+   	if !ok {
+   		return
+   	}
+   	tr.CancelRequest(req)
 }
