@@ -31,7 +31,7 @@ func TestRetryAfterCount(t *testing.T) {
 		}
 	)
 
-	_, err := trans.RoundTrip(req)
+	resp, err := trans.RoundTrip(req)
 
 	if have, got := next.err.Error(), err.Error(); have == got {
 		t.Fatalf("expected to override error from next")
@@ -39,6 +39,10 @@ func TestRetryAfterCount(t *testing.T) {
 
 	if want, got := attempts, next.count; want != got {
 		t.Fatalf("expected to make %d attempts, got %d", want, got)
+	}
+
+	if resp != nil {
+		t.Fatalf("expected response to be nil since error is not nil")
 	}
 }
 

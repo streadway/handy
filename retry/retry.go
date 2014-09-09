@@ -58,7 +58,7 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	for count, retry := 1, true; retry; count++ {
 		// Perform request
-		res, err := t.Next.RoundTrip(req)
+		resp, err := t.Next.RoundTrip(req)
 
 		// Collect result of attempt
 		attempt := Attempt{
@@ -66,21 +66,28 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			Count:    uint(count),
 			Err:      err,
 			Request:  req,
-			Response: res,
+			Response: resp,
 		}
 
 		// Evaluate attempt
 		retry, retryErr := retryer(attempt)
 
-		// Override error by retrier evaluation
-		if retryErr != nil {
-			err = retryErr
+		// Returns either the valid response or an error coming from the underlying Transport
+		if retry == Ignore {
+			return resp, err
 		}
 
-		// Return response and error if we did not evaluate to Retry decision
-		if retry != Retry {
-			return res, err
+		// Close the response body when we wont use it anymore (Retry or Abort)
+		if resp != nil {
+			resp.Body.Close()
 		}
+
+		// Return the error explaining why we aborted and nil as response
+		if retry == Abort {
+			return nil, retryErr
+		}
+
+		// ... Retries (stay the loop)
 
 		// Delay next attempt
 		if t.Delay != nil {
