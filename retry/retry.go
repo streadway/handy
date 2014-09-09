@@ -96,3 +96,7 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	panic("unreachable")
 }
+
+func (t *Transport) CancelRequest(req *Request) {
+	t.Next.CancelRequest(req)
+}
