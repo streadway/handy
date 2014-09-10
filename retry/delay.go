@@ -39,7 +39,7 @@ func fib(max uint) time.Duration {
 		i         uint
 	)
 	for prev, cur, i = 0, 1, 0; i < max; i++ {
-		prev, cur = prev, prev+cur
+		prev, cur = cur, prev+cur
 	}
 	return prev
 }
