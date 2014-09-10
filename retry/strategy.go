@@ -3,6 +3,7 @@ package retry
 import (
 	"fmt"
 	"io"
+	"net"
 	"time"
 )
 
@@ -74,6 +75,16 @@ func Max(limit uint) Retryer {
 func Errors() Retryer {
 	return func(a Attempt) (Decision, error) {
 		if a.Err != nil {
+			return Retry, nil
+		}
+		return Ignore, nil
+	}
+}
+
+// Net retries errors returned by the 'net' package.
+func Net() Retryer {
+	return func(a Attempt) (Decision, error) {
+		if _, isNetError := a.Err.(*net.OpError); isNetError {
 			return Retry, nil
 		}
 		return Ignore, nil

@@ -3,6 +3,7 @@ package retry
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -107,5 +108,24 @@ func TestComposeSuccess(t *testing.T) {
 	}
 	if want, got := Ignore, retry; want != got {
 		t.Fatalf("expected to return Ignore, did not")
+	}
+}
+
+func TestNetDialError(t *testing.T) {
+	_, err := net.Dial("tcp", "missing-name:1")
+	if err == nil {
+		t.Fatalf("expected dial to produce an error to test")
+	}
+	retry, netErr := Net()(Attempt{
+		Start: time.Now(),
+		Count: 1,
+		Err:   err,
+	})
+
+	if want, got := Retry, retry; want != got {
+		t.Fatalf("expected Net to %v on dial error, got: %v", want, got)
+	}
+	if netErr != nil {
+		t.Fatalf("expected Net not to return an error, got: %v", netErr)
 	}
 }
