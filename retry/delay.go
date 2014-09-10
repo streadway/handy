@@ -29,17 +29,18 @@ func Exponential(base time.Duration) Delayer {
 // Fibonacci sleeps for delta * fib(attempts)
 func Fibonacci(delta time.Duration) Delayer {
 	return func(a Attempt) {
-		time.Sleep(delta * fib(a.Count))
+		time.Sleep(delta * time.Duration(fib(a.Count)))
 	}
 }
 
-func fib(max uint) time.Duration {
+func fib(max uint) int64 {
 	var (
-		prev, cur time.Duration
-		i         uint
+		pre int64
+		cur int64
+		i   uint
 	)
-	for prev, cur, i = 0, 1, 0; i < max; i++ {
-		prev, cur = cur, prev+cur
+	for pre, cur, i = 0, 1, 0; i < max; i++ {
+		pre, cur = cur, pre+cur
 	}
-	return prev
+	return pre
 }
