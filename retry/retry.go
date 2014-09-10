@@ -56,14 +56,14 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		retryer = DefaultRetryer
 	}
 
-	for count, retry := 1, true; retry; count++ {
+	for count := uint(1); ; count++ {
 		// Perform request
 		resp, err := t.Next.RoundTrip(req)
 
 		// Collect result of attempt
 		attempt := Attempt{
 			Start:    start,
-			Count:    uint(count),
+			Count:    count,
 			Err:      err,
 			Request:  req,
 			Response: resp,
