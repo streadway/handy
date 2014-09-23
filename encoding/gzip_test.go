@@ -14,23 +14,45 @@ import (
 	"testing"
 )
 
-type body string
+type plain string
 
-func (h body) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h plain) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(h))
+}
+
+type json string
+
+func (h json) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json;charset=utf8")
+	w.Write([]byte(h))
+}
+
+func decode(t *testing.T, body io.Reader) string {
+	plain := &bytes.Buffer{}
+	gz, err := gzip.NewReader(body)
+	if err != nil {
+		t.Fatalf("expected a gzip stream, got: %q", err)
+	}
+	io.Copy(plain, gz)
+	return plain.String()
+}
+
+func acceptGzip() *http.Request {
+	return &http.Request{
+		Header: http.Header{"Accept-Encoding": {"gzip"}},
+	}
 }
 
 func TestGzip(t *testing.T) {
 	const msg = "the meaning of life, the universe and everything"
 
-	h := Gzip(body(msg))
+	var (
+		handler = Gzip(plain(msg))
+		resp    = httptest.NewRecorder()
+		req     = acceptGzip()
+	)
 
-	resp := httptest.NewRecorder()
-	req := &http.Request{
-		Header: map[string][]string{"Accept-Encoding": {"gzip"}},
-	}
-
-	h.ServeHTTP(resp, req)
+	handler.ServeHTTP(resp, req)
 
 	if hdr := resp.HeaderMap.Get("Content-Encoding"); hdr != "gzip" {
 		t.Fatalf("expected content encoding to be gzip, got: %q", hdr)
@@ -40,15 +62,45 @@ func TestGzip(t *testing.T) {
 		t.Fatalf("expected to vary on accept encoding, got: %q", hdr)
 	}
 
-	plain := &bytes.Buffer{}
-	gz, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		t.Fatalf("expected a gzip stream, got: %q", err)
+	if want, got := msg, decode(t, resp.Body); want != got {
+		t.Fatalf("expected to decompress message, got: %q", got)
+	}
+}
+
+func TestMatchingGzipTypes(t *testing.T) {
+	const msg = `{"meaning": 42}`
+
+	var (
+		types   = []string{"application/json"}
+		handler = GzipTypes(types, json(msg))
+		resp    = httptest.NewRecorder()
+		req     = acceptGzip()
+	)
+
+	handler.ServeHTTP(resp, req)
+
+	if want, got := "gzip", resp.HeaderMap.Get("Content-Encoding"); want != got {
+		t.Fatalf("expected content encoding %q, got: %q", want, got)
 	}
 
-	io.Copy(plain, gz)
+	if want, got := msg, decode(t, resp.Body); want != got {
+		t.Fatalf("expected decoded json stream %q, got: %q", want, got)
+	}
+}
 
-	if plain.String() != msg {
-		t.Fatalf("expected to decompress message, got: %q", plain.String())
+func TestNonMatchingGzipTypes(t *testing.T) {
+	const msg = `just some plain text`
+
+	var (
+		types   = []string{"application/json"}
+		handler = GzipTypes(types, plain(msg))
+		resp    = httptest.NewRecorder()
+		req     = acceptGzip()
+	)
+
+	handler.ServeHTTP(resp, req)
+
+	if want, got := "", resp.HeaderMap.Get("Content-Encoding"); want != got {
+		t.Fatalf("expected no content encoding, got: %q", got)
 	}
 }
