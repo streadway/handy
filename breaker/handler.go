@@ -10,6 +10,13 @@ import (
 // failure. The DefaultStatusCodeValidator can be used in most situations.
 type StatusCodeValidator func(int) bool
 
+// Middleware produces an http.Handler factory like Handler to be composed.
+func Middleware(breaker Breaker, validator StatusCodeValidator) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return Handler(breaker, validator, next)
+	}
+}
+
 // Handler produces an http.Handler that's governed by the passed Breaker and
 // StatusCodeValidator. Responses written by the next http.Handler whose
 // status codes fail the validator signal failures to the breaker. Once the
