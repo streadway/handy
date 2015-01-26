@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -16,6 +17,7 @@ import (
 // handler.
 func JSONMiddleware(writer io.Writer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
+		var mu sync.Mutex // serializes encodings
 		out := json.NewEncoder(writer)
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +52,9 @@ func JSONMiddleware(writer io.Writer) func(http.Handler) http.Handler {
 
 			writer.event.Ms = int(time.Since(start) / time.Millisecond)
 
+			mu.Lock()
 			out.Encode(writer.event)
+			mu.Unlock()
 		})
 	}
 }
