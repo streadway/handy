@@ -9,6 +9,20 @@ import (
 	"time"
 )
 
+// conditional implements a Temporary method like http.tlsHandshakeError
+type conditional bool
+
+func (e conditional) Error() string {
+	if bool(e) {
+		return "is an error"
+	}
+	return "is success"
+}
+
+func (e conditional) Temporary() bool {
+	return bool(e)
+}
+
 func TestComposeOverStatusCode(t *testing.T) {
 	retry, err := All(Over(400), Max(2), Timeout(10*time.Second))(Attempt{
 		Start:    time.Now(),
@@ -127,5 +141,25 @@ func TestNetDialError(t *testing.T) {
 	}
 	if netErr != nil {
 		t.Fatalf("expected Net not to return an error, got: %v", netErr)
+	}
+}
+
+func TestTemporaryRetries(t *testing.T) {
+	retry, err := Temporary()(Attempt{Err: conditional(true)})
+	if want, got := Retry, retry; want != got {
+		t.Fatalf("expected temporary errors to %v, got: %v", want, got)
+	}
+	if want, got := error(nil), err; want != got {
+		t.Fatalf("expected temporary errors not to error, got: %v", got)
+	}
+}
+
+func TestNotTemporaryAborts(t *testing.T) {
+	retry, err := Temporary()(Attempt{Err: conditional(false)})
+	if want, got := Abort, retry; want != got {
+		t.Fatalf("expected temporary errors to %v, got: %v", want, got)
+	}
+	if want, got := error(nil), err; want != got {
+		t.Fatalf("expected temporary errors not to error, got: %v", got)
 	}
 }

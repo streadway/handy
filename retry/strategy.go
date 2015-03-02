@@ -91,6 +91,23 @@ func Net() Retryer {
 	}
 }
 
+// Temporary retries if the error implements Temporary() bool and returns true or aborts if returning false.
+func Temporary() Retryer {
+	type temper interface {
+		Temporary() bool
+	}
+	return func(a Attempt) (Decision, error) {
+		if t, ok := a.Err.(temper); ok {
+			if t.Temporary() {
+				return Retry, nil
+			} else {
+				return Abort, nil
+			}
+		}
+		return Ignore, nil
+	}
+}
+
 // EOF retries only when the error is EOF
 func EOF() Retryer {
 	return func(a Attempt) (Decision, error) {
