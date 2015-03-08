@@ -3,5 +3,5 @@
 // license that can be found in the README file.
 // Source code and contact info at http://github.com/streadway/handy
 
-// Package atomic implements atomic accessors for primatives
+// Package atomic implements atomic accessors for primitives
 package atomic
