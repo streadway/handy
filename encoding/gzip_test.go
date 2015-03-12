@@ -11,7 +11,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 )
 
 type plain string
@@ -25,6 +27,15 @@ type json string
 func (h json) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json;charset=utf8")
 	w.Write([]byte(h))
+}
+
+type file struct {
+	name string
+	data []byte
+}
+
+func (h file) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	http.ServeContent(w, r, h.name, time.Time{}, bytes.NewReader(h.data))
 }
 
 func decode(t *testing.T, body io.Reader) string {
@@ -63,6 +74,40 @@ func TestGzip(t *testing.T) {
 	}
 
 	if want, got := msg, decode(t, resp.Body); want != got {
+		t.Fatalf("expected to decompress message, got: %q", got)
+	}
+}
+
+func TestGzipWithFile(t *testing.T) {
+	var data = `function foo(){return "bar";}`
+
+	handler := Gzip(file{
+		name: "foobar.js",
+		data: []byte(data),
+	})
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	u, _ := url.Parse(server.URL)
+	req := &http.Request{
+		URL:    u,
+		Header: http.Header{"Accept-Encoding": {"gzip"}},
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if hdr := resp.Header.Get("Content-Encoding"); hdr != "gzip" {
+		t.Fatalf("expected content encoding to be gzip, got: %q", hdr)
+	}
+
+	if hdr := resp.Header.Get("Vary"); hdr != "Accept-Encoding" {
+		t.Fatalf("expected to vary on accept encoding, got: %q", hdr)
+	}
+
+	if want, got := data, decode(t, resp.Body); want != got {
 		t.Fatalf("expected to decompress message, got: %q", got)
 	}
 }
