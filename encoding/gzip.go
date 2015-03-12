@@ -26,6 +26,7 @@ type gzipWriter struct {
 	http.ResponseWriter
 	io.WriteCloser
 	sync.Mutex
+	code  int
 	types []string
 }
 
@@ -50,15 +51,26 @@ func (w *gzipWriter) Write(b []byte) (int, error) {
 
 	if w.WriteCloser == nil {
 		if w.canGzip() {
+			w.Header().Del("Content-Length")
 			w.Header().Set("Content-Encoding", "gzip")
 			w.Header().Add("Vary", "Accept-Encoding")
 			w.WriteCloser = gzip.NewWriter(w.ResponseWriter)
 		} else {
 			w.WriteCloser = nopCloser{w.ResponseWriter}
 		}
-	}
 
+		if w.code != 0 {
+			w.ResponseWriter.WriteHeader(w.code)
+		}
+	}
 	return w.WriteCloser.Write(b)
+}
+
+func (w *gzipWriter) WriteHeader(code int) {
+	w.Lock()
+	defer w.Unlock()
+
+	w.code = code
 }
 
 func (w *gzipWriter) Close() error {
