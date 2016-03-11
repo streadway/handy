@@ -8,9 +8,11 @@ package encoding
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -103,4 +105,21 @@ func TestNonMatchingGzipTypes(t *testing.T) {
 	if want, got := "", resp.HeaderMap.Get("Content-Encoding"); want != got {
 		t.Fatalf("expected no content encoding, got: %q", got)
 	}
+}
+
+func TestGzipper_InvalidLevel(t *testing.T) {
+	const msg = `Fear is the mind killer`
+	Gzipper(42)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			n, err := w.Write([]byte(msg))
+			if want, got := n, 0; want != got {
+				t.Errorf("Write(%q) => want %d written bytes, got %d", msg, want, got)
+			}
+
+			want, got := errors.New("gzip: invalid compression level: 42"), err
+			if !reflect.DeepEqual(want, got) {
+				t.Errorf("Write(%q) => want err %q, got %q", msg, want, got)
+			}
+		}),
+	).ServeHTTP(httptest.NewRecorder(), acceptGzip())
 }

@@ -26,6 +26,7 @@ type gzipWriter struct {
 	http.ResponseWriter
 	io.WriteCloser
 	sync.Mutex
+	level int
 	types []string
 }
 
@@ -52,7 +53,11 @@ func (w *gzipWriter) Write(b []byte) (int, error) {
 		if w.canGzip() {
 			w.Header().Set("Content-Encoding", "gzip")
 			w.Header().Add("Vary", "Accept-Encoding")
-			w.WriteCloser = gzip.NewWriter(w.ResponseWriter)
+			wc, err := gzip.NewWriterLevel(w.ResponseWriter, w.level)
+			if err != nil {
+				return 0, err
+			}
+			w.WriteCloser = wc
 		} else {
 			w.WriteCloser = nopCloser{w.ResponseWriter}
 		}
@@ -72,25 +77,35 @@ func (w *gzipWriter) Close() error {
 }
 
 // Gzip calls the next handler with a response writer that will compress the
-// outbound writes.  This filter assumes a chunked transfer encoding, so do not
-// add a Content-Length header in the terminal handler.
+// outbound writes with the default compression level. This filter assumes a
+// chunked transfer encoding, so do not add a Content-Length header in the
+// terminal handler.
 //
 // If the request does not accept a gzip encoding, this filter has no effect.
 func Gzip(next http.Handler) http.Handler {
-	return GzipTypes(nil, next)
+	return Gzipper(gzip.DefaultCompression)(next)
 }
 
 // GzipTypes sets the gzips the response if the the request Accept-Encoding
 // contains 'gzip' and the response 'Content-Type' contains one of the mediaTypes.
 // When no or nil mediaTypes are provided, all content types will be gzip encoded.
 func GzipTypes(mediaTypes []string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			next.ServeHTTP(w, r)
-			return
-		}
-		zipper := &gzipWriter{types: mediaTypes, ResponseWriter: w}
-		defer zipper.Close()
-		next.ServeHTTP(zipper, r)
-	})
+	return Gzipper(gzip.DefaultCompression, mediaTypes...)(next)
+}
+
+// Gzipper returns a composable middleware function that wraps a given
+// http.Handler with outbound Gzip compression using the provided level and
+// optional accepted media types.
+func Gzipper(level int, mediaTypes ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			zipper := gzipWriter{level: level, types: mediaTypes, ResponseWriter: w}
+			defer zipper.Close()
+			next.ServeHTTP(&zipper, r)
+		})
+	}
 }
