@@ -19,6 +19,7 @@ import (
 type plain string
 
 func (h plain) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(h))
 }
 
@@ -111,9 +112,17 @@ func TestGzipper_InvalidLevel(t *testing.T) {
 	const msg = `Fear is the mind killer`
 	Gzipper(42)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError) // test error propagation
+
 			n, err := w.Write([]byte(msg))
 			if want, got := n, 0; want != got {
 				t.Errorf("Write(%q) => want %d written bytes, got %d", msg, want, got)
+			}
+
+			for _, hdr := range [...]string{"Content-Encoding", "Vary"} {
+				if got := w.Header().Get(hdr); got != "" {
+					t.Errorf("Write(%q) => want no %s header, got %q", msg, hdr, got)
+				}
 			}
 
 			want, got := errors.New("gzip: invalid compression level: 42"), err
@@ -122,4 +131,25 @@ func TestGzipper_InvalidLevel(t *testing.T) {
 			}
 		}),
 	).ServeHTTP(httptest.NewRecorder(), acceptGzip())
+}
+
+func TestGzipper_WriteHeader(t *testing.T) {
+	const msg = `Fear is the little-death that brings total obliteration.`
+	srv := httptest.NewServer(Gzipper(gzip.DefaultCompression)(plain(msg)))
+	defer srv.Close()
+
+	req, _ := http.NewRequest("GET", srv.URL, nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	hdrs := map[string]string{"Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
+	for hdr, want := range hdrs {
+		if got := resp.Header.Get(hdr); got != want {
+			t.Errorf("want %s to be %q, got %q", hdr, want, got)
+		}
+	}
 }

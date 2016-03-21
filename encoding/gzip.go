@@ -24,8 +24,9 @@ func (nopCloser) Close() error { return nil }
 
 type gzipWriter struct {
 	http.ResponseWriter
-	io.WriteCloser
 	sync.Mutex
+	io.WriteCloser
+	err   error
 	level int
 	types []string
 }
@@ -46,34 +47,48 @@ func (w gzipWriter) canGzip() bool {
 }
 
 func (w *gzipWriter) Write(b []byte) (int, error) {
+	if err := w.init(); err != nil {
+		return 0, err
+	}
+	return w.WriteCloser.Write(b)
+}
+
+func (w *gzipWriter) WriteHeader(code int) {
+	_ = w.init() // delay error propagation to Write and Close calls
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *gzipWriter) init() error {
 	w.Lock()
 	defer w.Unlock()
-
-	if w.WriteCloser == nil {
-		if w.canGzip() {
-			w.Header().Set("Content-Encoding", "gzip")
-			w.Header().Add("Vary", "Accept-Encoding")
-			wc, err := gzip.NewWriterLevel(w.ResponseWriter, w.level)
-			if err != nil {
-				return 0, err
-			}
-			w.WriteCloser = wc
-		} else {
-			w.WriteCloser = nopCloser{w.ResponseWriter}
-		}
+	if w.WriteCloser != nil || w.err != nil { // fast path
+		return w.err
 	}
 
-	return w.WriteCloser.Write(b)
+	if w.canGzip() {
+		w.WriteCloser, w.err = gzip.NewWriterLevel(w.ResponseWriter, w.level)
+		if w.err == nil {
+			w.Header().Set("Content-Encoding", "gzip")
+			w.Header().Add("Vary", "Accept-Encoding")
+		}
+	} else {
+		w.WriteCloser = nopCloser{w.ResponseWriter}
+	}
+
+	return w.err
 }
 
 func (w *gzipWriter) Close() error {
 	w.Lock()
 	defer w.Unlock()
 
-	if w.WriteCloser == nil {
-		return nil
+	switch {
+	case w.err != nil:
+		return w.err
+	case w.WriteCloser != nil:
+		return w.WriteCloser.Close()
 	}
-	return w.WriteCloser.Close()
+	return nil
 }
 
 // Gzip calls the next handler with a response writer that will compress the
