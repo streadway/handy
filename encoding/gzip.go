@@ -9,8 +9,11 @@ Package encoding contains Content-Encoding related filters.
 package encoding
 
 import (
+	"bufio"
 	"compress/gzip"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -56,6 +59,13 @@ func (w *gzipWriter) Write(b []byte) (int, error) {
 func (w *gzipWriter) WriteHeader(code int) {
 	_ = w.init() // delay error propagation to Write and Close calls
 	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *gzipWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, errors.New("not a Hijacker")
 }
 
 func (w *gzipWriter) init() error {

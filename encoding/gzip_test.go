@@ -153,3 +153,20 @@ func TestGzipper_WriteHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestGzipper_Hijacker(t *testing.T) {
+	srv := httptest.NewServer(Gzipper(gzip.DefaultCompression)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := w.(http.Hijacker); !ok {
+				t.Error("underlying http.ResponseWriter should implement http.Hijacker")
+			}
+		}),
+	))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+}
