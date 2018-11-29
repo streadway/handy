@@ -93,3 +93,38 @@ func TestRetryDelay(t *testing.T) {
 		t.Fatalf("expected to make %d attempts, got %d", want, got)
 	}
 }
+
+func TestIdempotent(t *testing.T) {
+	const attempts = 2
+
+	for _, it := range []struct{
+		method string
+		shouldRetry bool
+	}{
+		{"GET", true},
+		{"HEAD", true},
+		{"PUT", true},
+		{"DELETE", true},
+		{"OPTIONS", true},
+		{"TRACE", true},
+		{"POST", false},
+		{"UNKNOWN", false},
+	} {
+		t.Run(it.method, func(t *testing.T){
+			var (
+				req, _ = http.NewRequest(it.method, "http://example/test", nil)
+				next = &testRoundTrip{err: fmt.Errorf("next")}
+				trans = Transport{
+					Retry: All(Idempotent(), Max(attempts)),
+					Next: next,
+				}
+			)
+
+			trans.RoundTrip(req)
+
+			if want, got := it.shouldRetry, next.count == attempts; want != got {
+				t.Errorf("didn't retry as expected. want: %v, got: %v", want, got)
+			}
+		})
+	}
+}

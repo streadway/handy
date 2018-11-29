@@ -130,3 +130,24 @@ func Over(statusCode int) Retryer {
 		return Ignore, nil
 	}
 }
+
+// Method retries when the request method is one of the given methods
+func Method(methods ...string) Retryer {
+	ms := make(map[string]struct{}, len(methods))
+	for _, m := range methods {
+		ms[m] = struct{}{}
+	}
+	return func(a Attempt) (Decision, error) {
+		if _, ok := ms[a.Request.Method]; ok {
+			return Retry, nil
+		}
+		return Ignore, nil
+	}
+}
+
+// Idempotent retries when the request is expected to be idempotent according to
+// RFC 2616, section 9.1.2.
+// https://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.1.2
+func Idempotent() Retryer {
+	return Method("GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE")
+}
