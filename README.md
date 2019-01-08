@@ -9,7 +9,7 @@ are opinionated for a specific purpose.
 
 The signature for a handler wrapper ends with an http.Handler interface and returns a http.Handler interface.  For example:
 
-```
+```go
 func Log(w io.Writer, http.Handler) http.Handler
 
 func CORS(methods, origins []string, http.Handler) http.Handler
