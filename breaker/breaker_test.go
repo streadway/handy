@@ -146,3 +146,14 @@ func TestBreakerReschedulesOnFailureInHalfOpen(t *testing.T) {
 		t.Fatal("expected to close after failure in half-open")
 	}
 }
+
+func TestNewBreakerOptions(t *testing.T) {
+	c := NewBreaker(0)
+	c.WithCooldown(2 * time.Second)
+	c.WithMinObservation(30)
+	c.WithWindow(30 * time.Second)
+
+	if c.config.Cooldown != 2*time.Second || c.config.MinObservations != 30 || c.config.Window != 30*time.Second {
+		t.Fatal("unexpected configuration values")
+	}
+}

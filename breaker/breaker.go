@@ -103,6 +103,21 @@ func NewBreaker(failureRatio float64) breaker {
 	})
 }
 
+// WithMinObservation sets the mininum observation value
+func (b *breaker) WithMinObservation(min uint) {
+	b.config.MinObservations = min
+}
+
+// WithWindow sets the observation window
+func (b *breaker) WithWindow(w time.Duration) {
+	b.config.Window = w
+}
+
+// WithCooldown sets the cooldown time
+func (b *breaker) WithCooldown(c time.Duration) {
+	b.config.Cooldown = c
+}
+
 func (b breaker) shouldOpen(m *metric) bool {
 	s := m.Summary()
 	return s.total > b.config.MinObservations && s.rate > b.config.FailureRatio
