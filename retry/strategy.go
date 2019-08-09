@@ -101,7 +101,7 @@ func Temporary() Retryer {
 			if t.Temporary() {
 				return Retry, nil
 			} else {
-				return Abort, nil
+				return Abort, a.Err
 			}
 		}
 		return Ignore, nil
