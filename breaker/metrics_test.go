@@ -67,3 +67,49 @@ func TestErrorRateCalculatedFromLast5Seconds(t *testing.T) {
 	}
 
 }
+
+func TestErrorRateCalculationWithTimeGap(t *testing.T) {
+	fakenow := time.Now()
+	c := newMetric(3*time.Second, func() time.Time { return fakenow })
+
+	for i := 0; i < 3; i++ {
+		fakenow = fakenow.Add(time.Second)
+		c.Failure(0)
+	}
+
+	// the gap >= Metric.seconds
+	fakenow = fakenow.Add(4 * time.Second)
+	c.Success(0)
+
+	if ex, s := 0.0, c.Summary(); s.rate != ex {
+		t.Errorf("expected error rate to be %d%%, got: %f in %+v", int(ex*100), s.rate, s)
+	}
+
+	c = newMetric(3*time.Second, func() time.Time { return fakenow })
+	for i := 0; i < 2; i++ {
+		fakenow = fakenow.Add(time.Second)
+		c.Failure(0)
+	}
+
+	// the gap < Metric.seconds
+	fakenow = fakenow.Add(2 * time.Second)
+	c.Success(0)
+
+	if ex, s := 0.5, c.Summary(); s.rate != ex {
+		t.Errorf("expected error rate to be %d%%, got: %f in %+v", int(ex*100), s.rate, s)
+	}
+
+	c = newMetric(3*time.Second, func() time.Time { return fakenow })
+	for i := 0; i < 3; i++ {
+		fakenow = fakenow.Add(time.Second)
+		c.Success(0)
+	}
+
+	// clock jumps back
+	fakenow = fakenow.Add(-time.Second)
+	c.Failure(0)
+
+	if ex, s := 1.0, c.Summary(); s.rate != ex {
+		t.Errorf("expected error rate to be %d%%, got: %f in %+v", int(ex*100), s.rate, s)
+	}
+}

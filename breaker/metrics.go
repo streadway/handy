@@ -12,6 +12,12 @@ type counter struct {
 	failure uint
 }
 
+func (c *counter) reset(second int64) {
+	c.failure = 0
+	c.success = 0
+	c.second = second
+}
+
 type summary struct {
 	total  uint
 	errors uint
@@ -50,8 +56,17 @@ func (m *metric) next() *counter {
 	bucket := m.now().Unix()
 	c := m.r.Value.(*counter)
 	if c.second != bucket {
-		m.r = m.r.Next()
-		*m.r.Value.(*counter) = counter{second: bucket}
+		step := bucket - c.second
+		// consider the data are invalid when clock jumps back
+		if step < 0 || step > int64(m.seconds) {
+			step = int64(m.seconds)
+		}
+
+		for i := int64(1); i <= step; i++ {
+			m.r = m.r.Next()
+			c = m.r.Value.(*counter)
+			c.reset(bucket - step + i)
+		}
 	}
 	return c
 }
