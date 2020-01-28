@@ -153,3 +153,20 @@ func TestGzipper_WriteHeader(t *testing.T) {
 		}
 	}
 }
+func TestGzipper_WithoutAcceptEncoding(t *testing.T) {
+	const msg = `Fear is the little-death that brings total obliteration.`
+	srv := httptest.NewServer(Gzipper(gzip.DefaultCompression)(plain(msg)))
+	defer srv.Close()
+
+	req, _ := http.NewRequest("GET", srv.URL, nil)
+	req.Header.Set("Accept-Encoding", "")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	got := resp.Header.Get("Content-Encoding")
+	if got != "" {
+		t.Fatal("content encoding wasn't defined")
+	}
+}
