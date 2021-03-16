@@ -70,7 +70,7 @@ func TestMultipleJSONLogLines(t *testing.T) {
 		if ms, ok := report["ms"].(float64); !ok {
 			t.Fatalf("ms is not a number")
 		} else {
-			if want, got, delta := worktime, time.Duration(ms)*time.Millisecond, time.Millisecond; want+delta < got || want-delta > got {
+			if want, got, delta := worktime, time.Duration(ms)*time.Millisecond, worktime/2; want+delta < got || want-delta > got {
 				t.Fatalf("duration falls outside of %s±%s, got: %d", want, delta, got)
 			}
 		}
