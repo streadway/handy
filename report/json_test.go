@@ -95,3 +95,56 @@ func TestJSONShouldHaveMs(t *testing.T) {
 		t.Fatalf("expected report to include ms, got: %v", report)
 	}
 }
+
+func TestSelectiveJSON(t *testing.T) {
+	var (
+		r, w    = io.Pipe()
+		handler = SelectiveJSON(w, notFoo, sleeper(0))
+		logger  = json.NewDecoder(r)
+		paths   = []string{
+			"/foo",
+			"/bar",
+			"/foo",
+			"/1042",
+		}
+		expected = []string{
+			"/bar",
+			"/1042",
+		}
+	)
+
+	go func() {
+		for _, path := range paths {
+			get(handler, "http://example.org"+path)
+		}
+	}()
+
+	for _, want := range expected {
+		report := map[string]interface{}{}
+		if err := logger.Decode(&report); err != nil {
+			t.Fatalf("expected to decode json report, got: %q", err)
+		}
+
+		t.Log(report)
+
+		if _, ok := report["path"]; !ok {
+			t.Fatalf("expected report to include path, it did not")
+		}
+		if got := report["path"]; want != got {
+			t.Fatalf("expected report with path %s, got %s", want, got)
+		}
+	}
+	next := make([]byte, 10)
+	n, err := logger.Buffered().Read(next)
+	if err != nil {
+		t.Fatalf("expected reading remaining log stream not to fail, got: %s", err)
+	}
+	if n > 1 {
+		t.Fatalf("expected no more logs, got: %s", next)
+	}
+}
+
+// Only "log" requests that are not for /foo
+func notFoo(e Event) bool {
+	return e.Path != "/foo"
+}

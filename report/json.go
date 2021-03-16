@@ -13,9 +13,22 @@ import (
 	"time"
 )
 
+type ShouldLogger func(Event) bool
+
+// always classifies all events as loggable.
+func always(_ Event) bool {
+	return true
+}
+
 // JSONMiddleware returns a composable handler factory implementing the JSON
 // handler.
 func JSONMiddleware(writer io.Writer) func(http.Handler) http.Handler {
+	return SelectiveJSONMiddleware(writer, always)
+}
+
+// SelectiveJSONMiddleware returns a composable handler factory implementing the
+// SelectiveJSON handler.
+func SelectiveJSONMiddleware(writer io.Writer, shouldLog ShouldLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		var mu sync.Mutex // serializes encodings
 		out := json.NewEncoder(writer)
@@ -52,15 +65,24 @@ func JSONMiddleware(writer io.Writer) func(http.Handler) http.Handler {
 
 			writer.event.Ms = int(time.Since(start) / time.Millisecond)
 
-			mu.Lock()
-			out.Encode(writer.event)
-			mu.Unlock()
+			if shouldLog(writer.event) {
+				mu.Lock()
+				_ = out.Encode(writer.event)
+				mu.Unlock()
+			}
 		})
 	}
 }
 
 // JSON writes a JSON encoded Event to the provided writer at the
-// completion of each request
+// completion of each request.
 func JSON(writer io.Writer, next http.Handler) http.Handler {
 	return JSONMiddleware(writer)(next)
+}
+
+// SelectiveJSON writes a JSON encoded event to the provided writer at the
+// completion of each request, if the ShouldLogger called with this event
+// returned true.
+func SelectiveJSON(writer io.Writer, shouldLog ShouldLogger, next http.Handler) http.Handler {
+	return SelectiveJSONMiddleware(writer, shouldLog)(next)
 }
