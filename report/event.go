@@ -56,3 +56,7 @@ func (e *eventRecorder) WriteHeader(code int) {
 	e.event.Status = code
 	e.ResponseWriter.WriteHeader(code)
 }
+
+type Reporter interface {
+	Report(Event)
+}

@@ -96,10 +96,11 @@ func TestJSONShouldHaveMs(t *testing.T) {
 	}
 }
 
-func TestSelectiveJSON(t *testing.T) {
+func TestFilteredJSON(t *testing.T) {
 	var (
-		r, w    = io.Pipe()
-		handler = SelectiveJSON(w, notFoo, sleeper(0))
+		r, w = io.Pipe()
+		// Construct a middleware that only logs certain events.
+		handler = HTTPMiddleware(NewFilter(notFoo, NewJSONReporter(w)))(sleeper(0))
 		logger  = json.NewDecoder(r)
 		paths   = []string{
 			"/foo",
